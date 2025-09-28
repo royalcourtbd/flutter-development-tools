@@ -64,18 +64,17 @@ def setup_windows(system_info):
     
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
-    util_script = scripts_dir / 'util.py'
+    flutter_dev_script = scripts_dir / 'flutter-dev.py'
     create_page_script = scripts_dir / 'create_page.py'
     
     if current_dir != scripts_dir:
-        if (current_dir / 'util.py').exists():
-            shutil.copy2(current_dir / 'util.py', util_script)
+        if (current_dir / 'flutter-dev.py').exists():
+            shutil.copy2(current_dir / 'flutter-dev.py', flutter_dev_script)
         if (current_dir / 'create_page.py').exists():
             shutil.copy2(current_dir / 'create_page.py', create_page_script)
     
     # Create batch wrappers
-    create_batch_wrapper(util_script, bin_dir / 'util.bat', 'util')
-    create_batch_wrapper(util_script, bin_dir / 'flutter-helper.bat', 'flutter-helper')
+    create_batch_wrapper(flutter_dev_script, bin_dir / 'flutter-dev.bat', 'flutter-dev')
     create_batch_wrapper(create_page_script, bin_dir / 'create-page.bat', 'create-page')
     
     # Check PATH
@@ -106,33 +105,28 @@ def setup_unix(system_info):
     
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
-    util_script = scripts_dir / 'util.py'
+    flutter_dev_script = scripts_dir / 'flutter-dev.py'
     create_page_script = scripts_dir / 'create_page.py'
     
     if current_dir != scripts_dir:
-        if (current_dir / 'util.py').exists():
-            shutil.copy2(current_dir / 'util.py', util_script)
+        if (current_dir / 'flutter-dev.py').exists():
+            shutil.copy2(current_dir / 'flutter-dev.py', flutter_dev_script)
         if (current_dir / 'create_page.py').exists():
             shutil.copy2(current_dir / 'create_page.py', create_page_script)
     
     # Make scripts executable
-    os.chmod(util_script, 0o755)
+    os.chmod(flutter_dev_script, 0o755)
     os.chmod(create_page_script, 0o755)
     
     # Create symlinks (preferred) or shell wrappers
-    util_link = bin_dir / 'util'
-    flutter_helper_link = bin_dir / 'flutter-helper'
+    flutter_dev_link = bin_dir / 'flutter-dev'
     create_page_link = bin_dir / 'create-page'
     
     try:
         # Try symlinks first
-        if util_link.exists() or util_link.is_symlink():
-            util_link.unlink()
-        util_link.symlink_to(util_script)
-        
-        if flutter_helper_link.exists() or flutter_helper_link.is_symlink():
-            flutter_helper_link.unlink()
-        flutter_helper_link.symlink_to(util_script)
+        if flutter_dev_link.exists() or flutter_dev_link.is_symlink():
+            flutter_dev_link.unlink()
+        flutter_dev_link.symlink_to(flutter_dev_script)
         
         if create_page_link.exists() or create_page_link.is_symlink():
             create_page_link.unlink()
@@ -143,8 +137,7 @@ def setup_unix(system_info):
     except (OSError, NotImplementedError):
         # Fallback to shell wrappers
         print(f"{YELLOW}Symlinks not available, creating shell wrappers...{NC}")
-        create_shell_wrapper(util_script, util_link, 'util')
-        create_shell_wrapper(util_script, flutter_helper_link, 'flutter-helper')
+        create_shell_wrapper(flutter_dev_script, flutter_dev_link, 'flutter-dev')
         create_shell_wrapper(create_page_script, create_page_link, 'create-page')
     
     # Check PATH
@@ -170,10 +163,10 @@ def update_scripts_for_cross_platform():
     """Update scripts to be more cross-platform friendly"""
     print(f"{YELLOW}Updating scripts for cross-platform compatibility...{NC}")
     
-    # Update util.py
-    util_path = Path.home() / 'scripts' / 'flutter-tools' / 'util.py'
-    if util_path.exists():
-        with open(util_path, 'r') as f:
+    # Update flutter-dev.py
+    flutter_dev_path = Path.home() / 'scripts' / 'flutter-tools' / 'flutter-dev.py'
+    if flutter_dev_path.exists():
+        with open(flutter_dev_path, 'r') as f:
             content = f.read()
         
         # Replace hardcoded path with cross-platform version
@@ -182,14 +175,14 @@ def update_scripts_for_cross_platform():
         
         if old_path in content and 'from pathlib import Path' not in content:
             # Add Path import
-            content = content.replace('import os', 'import os\\nfrom pathlib import Path')
+            content = content.replace('import os', 'import os\nfrom pathlib import Path')
             # Replace path
             content = content.replace(old_path, new_path)
             
-            with open(util_path, 'w') as f:
+            with open(flutter_dev_path, 'w') as f:
                 f.write(content)
             
-            print(f"{GREEN}✓ Updated util.py for cross-platform paths{NC}")
+            print(f"{GREEN}✓ Updated flutter-dev.py for cross-platform paths{NC}")
 
 def main():
     print(f"{BLUE}Flutter Tools Cross-Platform Setup{NC}")
@@ -209,10 +202,9 @@ def main():
     update_scripts_for_cross_platform()
     
     print(f"\\n{GREEN}🎉 Setup completed!{NC}")
-    print(f"\\n{BLUE}Available commands:{NC}")
-    print(f"  util apk                    # Build APK")
-    print(f"  util setup                  # Full setup")
-    print(f"  flutter-helper apk          # Alternative name")
+    print(f"\n{BLUE}Available commands:{NC}")
+    print(f"  flutter-dev apk             # Build APK")
+    print(f"  flutter-dev setup           # Full setup")
     print(f"  create-page page user_info  # Create page structure")
     
     print(f"\\n{BLUE}Master files location:{NC}")
