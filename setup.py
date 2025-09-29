@@ -62,20 +62,28 @@ def setup_windows(system_info):
     scripts_dir.mkdir(parents=True, exist_ok=True)
     bin_dir.mkdir(parents=True, exist_ok=True)
     
+    # Define all Python scripts to copy
+    scripts_to_copy = [
+        ('flutter-dev.py', 'flutter-dev'),
+        ('create_page.py', 'create-page'),
+        ('gemini_api.py', 'gemini-api'),
+        ('git_diff_output_editor.py', 'git-diff-editor')
+    ]
+    
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
-    flutter_dev_script = scripts_dir / 'flutter-dev.py'
-    create_page_script = scripts_dir / 'create_page.py'
     
     if current_dir != scripts_dir:
-        if (current_dir / 'flutter-dev.py').exists():
-            shutil.copy2(current_dir / 'flutter-dev.py', flutter_dev_script)
-        if (current_dir / 'create_page.py').exists():
-            shutil.copy2(current_dir / 'create_page.py', create_page_script)
+        for script_file, _ in scripts_to_copy:
+            if (current_dir / script_file).exists():
+                shutil.copy2(current_dir / script_file, scripts_dir / script_file)
+                print(f"{GREEN}✓ Copied {script_file}{NC}")
     
-    # Create batch wrappers
-    create_batch_wrapper(flutter_dev_script, bin_dir / 'flutter-dev.bat', 'flutter-dev')
-    create_batch_wrapper(create_page_script, bin_dir / 'create-page.bat', 'create-page')
+    # Create batch wrappers for all scripts
+    for script_file, command_name in scripts_to_copy:
+        script_path = scripts_dir / script_file
+        if script_path.exists():
+            create_batch_wrapper(script_path, bin_dir / f'{command_name}.bat', command_name)
     
     # Check PATH
     path_env = os.environ.get('PATH', '')
@@ -103,42 +111,52 @@ def setup_unix(system_info):
     scripts_dir.mkdir(parents=True, exist_ok=True)
     bin_dir.mkdir(parents=True, exist_ok=True)
     
+    # Define all Python scripts to copy
+    scripts_to_copy = [
+        ('flutter-dev.py', 'flutter-dev'),
+        ('create_page.py', 'create-page'),
+        ('gemini_api.py', 'gemini-api'),
+        ('git_diff_output_editor.py', 'git-diff-editor')
+    ]
+    
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
-    flutter_dev_script = scripts_dir / 'flutter-dev.py'
-    create_page_script = scripts_dir / 'create_page.py'
     
     if current_dir != scripts_dir:
-        if (current_dir / 'flutter-dev.py').exists():
-            shutil.copy2(current_dir / 'flutter-dev.py', flutter_dev_script)
-        if (current_dir / 'create_page.py').exists():
-            shutil.copy2(current_dir / 'create_page.py', create_page_script)
+        for script_file, _ in scripts_to_copy:
+            if (current_dir / script_file).exists():
+                shutil.copy2(current_dir / script_file, scripts_dir / script_file)
+                print(f"{GREEN}✓ Copied {script_file}{NC}")
     
-    # Make scripts executable
-    os.chmod(flutter_dev_script, 0o755)
-    os.chmod(create_page_script, 0o755)
+    # Make all scripts executable
+    for script_file, _ in scripts_to_copy:
+        script_path = scripts_dir / script_file
+        if script_path.exists():
+            os.chmod(script_path, 0o755)
     
     # Create symlinks (preferred) or shell wrappers
-    flutter_dev_link = bin_dir / 'flutter-dev'
-    create_page_link = bin_dir / 'create-page'
-    
     try:
         # Try symlinks first
-        if flutter_dev_link.exists() or flutter_dev_link.is_symlink():
-            flutter_dev_link.unlink()
-        flutter_dev_link.symlink_to(flutter_dev_script)
-        
-        if create_page_link.exists() or create_page_link.is_symlink():
-            create_page_link.unlink()
-        create_page_link.symlink_to(create_page_script)
+        for script_file, command_name in scripts_to_copy:
+            script_path = scripts_dir / script_file
+            command_link = bin_dir / command_name
+            
+            if script_path.exists():
+                if command_link.exists() or command_link.is_symlink():
+                    command_link.unlink()
+                command_link.symlink_to(script_path)
         
         print(f"{GREEN}✓ Created symlinks{NC}")
         
     except (OSError, NotImplementedError):
         # Fallback to shell wrappers
         print(f"{YELLOW}Symlinks not available, creating shell wrappers...{NC}")
-        create_shell_wrapper(flutter_dev_script, flutter_dev_link, 'flutter-dev')
-        create_shell_wrapper(create_page_script, create_page_link, 'create-page')
+        for script_file, command_name in scripts_to_copy:
+            script_path = scripts_dir / script_file
+            command_link = bin_dir / command_name
+            
+            if script_path.exists():
+                create_shell_wrapper(script_path, command_link, command_name)
     
     # Check PATH
     shell_config = None
@@ -201,11 +219,13 @@ def main():
     # Update scripts for cross-platform compatibility
     update_scripts_for_cross_platform()
     
-    print(f"\\n{GREEN}🎉 Setup completed!{NC}")
+    print(f"\n{GREEN}🎉 Setup completed!{NC}")
     print(f"\n{BLUE}Available commands:{NC}")
     print(f"  flutter-dev apk             # Build APK")
     print(f"  flutter-dev setup           # Full setup")
     print(f"  create-page page user_info  # Create page structure")
+    print(f"  gemini-api                  # Generate AI commit messages")
+    print(f"  git-diff-editor             # Git diff editor with AI prompts")
     
     print(f"\\n{BLUE}Master files location:{NC}")
     print(f"  {GREEN}{system_info['home']}/scripts/flutter-tools/{NC}")
