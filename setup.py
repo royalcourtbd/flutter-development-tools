@@ -64,7 +64,7 @@ def setup_windows(system_info):
     
     # Define all Python scripts to copy
     scripts_to_copy = [
-        ('flutter-dev.py', 'flutter-dev'),
+        ('fdev.py', 'fdev'),
         ('create_page.py', 'create-page'),
         ('gemini_api.py', 'gemini-api'),
         ('git_diff_output_editor.py', 'git-diff-editor')
@@ -113,7 +113,7 @@ def setup_unix(system_info):
     
     # Define all Python scripts to copy
     scripts_to_copy = [
-        ('flutter-dev.py', 'flutter-dev'),
+        ('fdev.py', 'fdev'),
         ('create_page.py', 'create-page'),
         ('gemini_api.py', 'gemini-api'),
         ('git_diff_output_editor.py', 'git-diff-editor')
@@ -181,10 +181,10 @@ def update_scripts_for_cross_platform():
     """Update scripts to be more cross-platform friendly"""
     print(f"{YELLOW}Updating scripts for cross-platform compatibility...{NC}")
     
-    # Update flutter-dev.py
-    flutter_dev_path = Path.home() / 'scripts' / 'flutter-tools' / 'flutter-dev.py'
-    if flutter_dev_path.exists():
-        with open(flutter_dev_path, 'r', encoding='utf-8') as f:
+    # Update fdev.py
+    fdev_path = Path.home() / 'scripts' / 'flutter-tools' / 'fdev.py'
+    if fdev_path.exists():
+        with open(fdev_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Replace hardcoded path with cross-platform version
@@ -197,10 +197,10 @@ def update_scripts_for_cross_platform():
             # Replace path
             content = content.replace(old_path, new_path)
             
-            with open(flutter_dev_path, 'w', encoding='utf-8') as f:
+            with open(fdev_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            print(f"{GREEN}✓ Updated flutter-dev.py for cross-platform paths{NC}")
+            print(f"{GREEN}✓ Updated fdev.py for cross-platform paths{NC}")
 
 def main():
     print(f"{BLUE}Flutter Tools Cross-Platform Setup{NC}")
@@ -221,8 +221,8 @@ def main():
     
     print(f"\n{GREEN}🎉 Setup completed!{NC}")
     print(f"\n{BLUE}Available commands:{NC}")
-    print(f"  flutter-dev apk             # Build APK")
-    print(f"  flutter-dev setup           # Full setup")
+    print(f"  fdev apk                    # Build APK")
+    print(f"  fdev setup                  # Full setup")
     print(f"  create-page page user_info  # Create page structure")
     print(f"  gemini-api                  # Generate AI commit messages")
     print(f"  git-diff-editor             # Git diff editor with AI prompts")
