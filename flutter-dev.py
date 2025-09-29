@@ -472,7 +472,24 @@ def smart_commit():
         return False
 
     print(f"\n{BLUE}Generated commit message:{NC}")
-    print(f"{GREEN}{commit_message}{NC}\n")
+    
+    # Process commit message to add "-" to description lines
+    lines = commit_message.split('\n')
+    processed_lines = []
+    
+    for i, line in enumerate(lines):
+        # Skip the first line (title) and empty lines
+        if i == 0 or line.strip() == "":
+            processed_lines.append(line)
+        else:
+            # Add "-" to non-empty description lines
+            if line.strip():
+                processed_lines.append(f"- {line}")
+            else:
+                processed_lines.append(line)
+    
+    formatted_commit_message = '\n'.join(processed_lines)
+    print(f"{GREEN}{formatted_commit_message}{NC}\n")
 
     # Ask for confirmation
     user_input = input(f"Proceed with this commit? (y/N): ")
