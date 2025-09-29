@@ -34,7 +34,7 @@ def create_batch_wrapper(script_path, wrapper_path, script_name):
     batch_content = f'''@echo off
 "{sys.executable}" "{script_path}" %*
 '''
-    with open(wrapper_path, 'w') as f:
+    with open(wrapper_path, 'w', encoding='utf-8') as f:
         f.write(batch_content)
     print(f"{GREEN}✓ Created Windows batch wrapper: {wrapper_path}{NC}")
 
@@ -43,7 +43,7 @@ def create_shell_wrapper(script_path, wrapper_path, script_name):
     shell_content = f'''#!/bin/bash
 "{sys.executable}" "{script_path}" "$@"
 '''
-    with open(wrapper_path, 'w') as f:
+    with open(wrapper_path, 'w', encoding='utf-8') as f:
         f.write(shell_content)
     
     # Make executable
@@ -184,7 +184,7 @@ def update_scripts_for_cross_platform():
     # Update flutter-dev.py
     flutter_dev_path = Path.home() / 'scripts' / 'flutter-tools' / 'flutter-dev.py'
     if flutter_dev_path.exists():
-        with open(flutter_dev_path, 'r') as f:
+        with open(flutter_dev_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Replace hardcoded path with cross-platform version
@@ -197,7 +197,7 @@ def update_scripts_for_cross_platform():
             # Replace path
             content = content.replace(old_path, new_path)
             
-            with open(flutter_dev_path, 'w') as f:
+            with open(flutter_dev_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
             print(f"{GREEN}✓ Updated flutter-dev.py for cross-platform paths{NC}")
