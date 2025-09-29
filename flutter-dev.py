@@ -77,14 +77,15 @@ def show_loading(description, process):
 
 def display_apk_size():
     """Function to display APK size"""
-    apk_files = glob.glob("build/app/outputs/flutter-apk/*.apk")
+    apk_dir = Path("build/app/outputs/flutter-apk")
+    apk_files = list(apk_dir.glob("*.apk")) if apk_dir.exists() else []
     if apk_files:
         for apk_path in apk_files:
-            size_bytes = os.path.getsize(apk_path)
+            size_bytes = apk_path.stat().st_size
             size_mb = round(size_bytes / 1048576, 2)
-            print(f"{BLUE}APK: {os.path.basename(apk_path)} | Size: {size_mb} MB{NC}")
+            print(f"{BLUE}APK: {apk_path.name} | Size: {size_mb} MB{NC}")
     else:
-        print(f"{RED}APK file not found in build/app/outputs/flutter-apk/{NC}")
+        print(f"{RED}APK file not found in {apk_dir}{NC}")
 
 def run_flutter_command(cmd_list, description):
     """
@@ -108,7 +109,10 @@ def open_directory(directory_path):
         elif platform.system() == "Linux":
             subprocess.run(["xdg-open", directory_path])
         elif platform.system() == "Windows":
-            subprocess.run(["start", directory_path], shell=True)
+            # Convert to absolute path and use Windows path separators
+            abs_path = os.path.abspath(directory_path)
+            # Use explorer to open the directory
+            subprocess.run(["explorer", abs_path], shell=True)
         else:
             print(f"Cannot open directory automatically. Please check: {directory_path}")
     except Exception as e:
@@ -254,7 +258,8 @@ def install_apk():
     Tries to install arm64-v8a APK first if available.
     Handles signature mismatch by uninstalling existing app first.
     """
-    apk_files = glob.glob("build/app/outputs/flutter-apk/*.apk")
+    apk_dir = Path("build/app/outputs/flutter-apk")
+    apk_files = [str(f) for f in apk_dir.glob("*.apk")] if apk_dir.exists() else []
     if not apk_files:
         print(f"{RED}No APK found to install!{NC}")
         return False
@@ -285,6 +290,11 @@ def install_apk():
 @timer_decorator
 def update_pods():
     """Update iOS pods"""
+    if platform.system() == "Windows":
+        print(f"{YELLOW}iOS pods are not supported on Windows{NC}")
+        print(f"{BLUE}This command is only available on macOS and Linux{NC}")
+        return
+    
     print(f"{YELLOW}Updating iOS pods...{NC}\n")
     # Navigate to iOS directory
     current_dir = os.getcwd()
@@ -293,7 +303,10 @@ def update_pods():
     try:
         os.remove("Podfile.lock")
         # Use a dummy process for the loading animation
-        run_flutter_command(["sleep", "0.1"], "Removing Podfile.lock                                 ")
+        if platform.system() == "Windows":
+            run_flutter_command(["timeout", "/t", "1", "/nobreak", ">nul"], "Removing Podfile.lock                                 ")
+        else:
+            run_flutter_command(["sleep", "0.1"], "Removing Podfile.lock                                 ")
     except FileNotFoundError:
         pass
     # Update pod repo
@@ -311,7 +324,7 @@ def update_pods():
 def get_version_from_pubspec():
     """Get the version from pubspec.yaml using regex"""
     if os.path.isfile("pubspec.yaml"):
-        with open("pubspec.yaml", 'r') as file:
+        with open("pubspec.yaml", 'r', encoding='utf-8') as file:
             try:
                 content = file.read()
                 # Use regex to find the version field in pubspec.yaml
