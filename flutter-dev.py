@@ -9,6 +9,7 @@ import glob
 import re  # Added for git tag functionality
 from functools import wraps
 from pathlib import Path
+import json
 
 # Colors for output
 RED = '\033[0;31m'
@@ -387,6 +388,105 @@ def uninstall_app():
         print(f"\n{RED}✗ Failed to uninstall app!{NC}")
     return success
 
+@timer_decorator
+def smart_commit():
+    """Generate git diff, create commit message using Gemini AI, and commit"""
+    print(f"{YELLOW}Smart Git Commit...{NC}\n")
+
+    current_dir = os.getcwd()
+
+    # Check if git repository
+    try:
+        subprocess.run(["git", "status"], check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        print(f"{RED}Error: Not a git repository or git not available{NC}")
+        return False
+
+    # Check for changes
+    try:
+        result = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True)
+        staged_changes = result.stdout.strip()
+
+        result = subprocess.run(["git", "diff"], capture_output=True, text=True)
+        unstaged_changes = result.stdout.strip()
+
+        if not staged_changes and not unstaged_changes:
+            print(f"{YELLOW}No changes detected to commit{NC}")
+            return False
+
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error checking git changes: {e}{NC}")
+        return False
+
+    # Get all changes (staged + unstaged)
+    try:
+        result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True)
+        all_changes = result.stdout.strip()
+
+        if not all_changes:
+            # If no changes from HEAD, get staged changes only
+            all_changes = staged_changes
+
+    except subprocess.CalledProcessError:
+        all_changes = staged_changes + "\n" + unstaged_changes
+
+    if not all_changes:
+        print(f"{YELLOW}No changes to analyze{NC}")
+        return False
+
+    # Import Gemini API
+    try:
+        script_dir = Path(__file__).parent
+        gemini_script = script_dir / "gemini_api.py"
+
+        if not gemini_script.exists():
+            print(f"{RED}Error: gemini_api.py not found{NC}")
+            return False
+
+        # Import the function
+        sys.path.insert(0, str(script_dir))
+        from gemini_api import generate_commit_message
+
+    except ImportError as e:
+        print(f"{RED}Error importing Gemini API: {e}{NC}")
+        return False
+
+    # Generate commit message
+    commit_message = generate_commit_message(all_changes)
+
+    if not commit_message:
+        print(f"{RED}Failed to generate commit message{NC}")
+        return False
+
+    print(f"\n{BLUE}Generated commit message:{NC}")
+    print(f"{GREEN}{commit_message}{NC}\n")
+
+    # Ask for confirmation
+    user_input = input(f"Proceed with this commit? (y/N): ")
+    if user_input.lower() != 'y':
+        print(f"{YELLOW}Commit cancelled{NC}")
+        return False
+
+    # Stage all changes if there are unstaged changes
+    if unstaged_changes:
+        print(f"{YELLOW}Staging all changes...{NC}")
+        try:
+            subprocess.run(["git", "add", "."], check=True)
+            print(f"{GREEN}✓ Changes staged{NC}")
+        except subprocess.CalledProcessError as e:
+            print(f"{RED}Error staging changes: {e}{NC}")
+            return False
+
+    # Commit with generated message
+    try:
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        print(f"\n{GREEN}✓ Commit successful!{NC}")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error creating commit: {e}{NC}")
+        return False
+
 def create_page(page_name):
     """Create page structure"""
     print(f"{YELLOW}Creating page...{NC}\n")
@@ -422,6 +522,7 @@ def show_usage():
     print("  uninstall    Uninstall app from connected device")
     print("  pod          Update iOS pods")
     print("  tag          Create and push git tag from pubspec version")
+    print("  commit       Smart git commit with AI-generated message")
     print("  page         Create page structure (usage: {sys.argv[0]} page <page_name>)")
     sys.exit(1)
 
@@ -457,6 +558,8 @@ def main():
         update_pods()
     elif command == "tag":
         create_and_push_tag()
+    elif command == "commit":
+        smart_commit()
     elif command == "page":
         if len(sys.argv) < 3:
             print(f"{RED}Error: Page name is required.{NC}")
