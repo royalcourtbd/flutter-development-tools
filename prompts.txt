@@ -1,1 +1,0 @@
-/Users/maxcode/Documents/GitHub/dua-flutter-v4/lib/core/external_libs/custom_library/plan_card
