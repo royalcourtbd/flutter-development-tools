@@ -450,14 +450,14 @@ def smart_commit():
     # Import Gemini API
     try:
         script_dir = Path(__file__).parent
-        gemini_script = script_dir / "gemini_api.py"
+        gemini_script = Path.home() / "scripts" / "flutter-tools" / "gemini_api.py"
 
         if not gemini_script.exists():
             print(f"{RED}Error: gemini_api.py not found{NC}")
             return False
 
         # Import the function
-        sys.path.insert(0, str(script_dir))
+        sys.path.insert(0, str(Path.home() / "scripts" / "flutter-tools"))
         from gemini_api import generate_commit_message
 
     except ImportError as e:
