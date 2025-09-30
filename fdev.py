@@ -509,7 +509,7 @@ def smart_commit():
 
     # Commit with generated message
     try:
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        subprocess.run(["git", "commit", "-m", formatted_commit_message], check=True)
         print(f"\n{GREEN}✓ Commit successful!{NC}")
         return True
 
