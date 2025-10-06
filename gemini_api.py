@@ -19,7 +19,7 @@ NC = '\033[0m'
 
 # Gemini API configuration
 GEMINI_API_KEY = "AIzaSyDXNmCaoqqrKzfXOQcsldQzQsu0rwpOAPo"
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent"
 
 def generate_commit_message(git_diff_content):
     """
