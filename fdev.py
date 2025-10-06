@@ -94,10 +94,14 @@ def run_flutter_command(cmd_list, description):
         cmd_list: List of command arguments
         description: Description to show with spinner
     """
+    # Windows compatibility for shell commands - NEW LINE ADDED HERE
+    shell_needed = (platform.system() == "Windows" and cmd_list[0] in ['timeout', 'start', 'flutter', 'dart']) or cmd_list[0] == 'pod'
+    
     process = subprocess.Popen(
         cmd_list,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
+        shell=shell_needed  # NEW PARAMETER ADDED HERE
     )
     return show_loading(description, process)
 
