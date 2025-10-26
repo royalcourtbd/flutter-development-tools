@@ -515,6 +515,19 @@ def smart_commit():
     try:
         subprocess.run(["git", "commit", "-m", formatted_commit_message], check=True)
         print(f"\n{GREEN}✓ Commit successful!{NC}")
+        
+        # Wait 1.5 seconds to show success message
+        time.sleep(1.5)
+        
+        # Clear terminal after successful commit
+        if platform.system() == "Windows":
+            os.system('cls')
+        else:
+            os.system('clear')
+        
+        print(f"{GREEN}✓ Commit completed and terminal cleared!{NC}")
+        print(f"{BLUE}Ready for next commit 🚀{NC}\n")
+        
         return True
 
     except subprocess.CalledProcessError as e:
