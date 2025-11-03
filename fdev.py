@@ -75,6 +75,46 @@ def show_loading(description, process):
             print(f"\n{RED}Error Output:\n{stderr.decode()}{NC}")
         return False
 
+def get_package_name():
+    """
+    Dynamically extract package name (applicationId) from Android build files.
+    Checks both build.gradle.kts and build.gradle files.
+    Returns the package name or None if not found.
+    """
+    # Check for build.gradle.kts first (newer format)
+    gradle_kts_path = Path("android/app/build.gradle.kts")
+    gradle_path = Path("android/app/build.gradle")
+
+    # Try build.gradle.kts first
+    if gradle_kts_path.exists():
+        try:
+            with open(gradle_kts_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+                # Pattern for Kotlin DSL: applicationId = "com.example.app"
+                match = re.search(r'applicationId\s*=\s*["\']([^"\']+)["\']', content)
+                if match:
+                    package_name = match.group(1)
+                    return package_name
+        except Exception as e:
+            print(f"{YELLOW}Warning: Could not read {gradle_kts_path}: {e}{NC}")
+
+    # Try build.gradle (Groovy format)
+    if gradle_path.exists():
+        try:
+            with open(gradle_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+                # Pattern for Groovy: applicationId "com.example.app"
+                match = re.search(r'applicationId\s+["\']([^"\']+)["\']', content)
+                if match:
+                    package_name = match.group(1)
+                    return package_name
+        except Exception as e:
+            print(f"{YELLOW}Warning: Could not read {gradle_path}: {e}{NC}")
+
+    print(f"{RED}Error: Could not find package name in build.gradle or build.gradle.kts{NC}")
+    print(f"{YELLOW}Searched in: android/app/build.gradle and android/app/build.gradle.kts{NC}")
+    return None
+
 def display_apk_size():
     """Function to display APK size"""
     apk_dir = Path("build/app/outputs/flutter-apk")
@@ -267,7 +307,7 @@ def install_apk():
     if not apk_files:
         print(f"{RED}No APK found to install!{NC}")
         return False
-    
+
     # Try to install arm64-v8a APK first, otherwise use the first apk
     target_apk = None
     for apk_path in apk_files:
@@ -276,19 +316,27 @@ def install_apk():
             break
     if not target_apk:
         target_apk = apk_files[0]
-    
+
     print(f"{YELLOW}Installing {target_apk}...{NC}")
-    
+
     # First try normal install
     success = run_flutter_command(["adb", "install", "-r", target_apk], "Installing on device...                              ")
-    
+
     if not success:
+        # Get package name dynamically
+        package_name = get_package_name()
+        if not package_name:
+            print(f"{RED}Cannot proceed without package name{NC}")
+            return False
+
         print(f"{YELLOW}Installation failed, trying to uninstall existing app first...{NC}")
-        # Try to uninstall existing app first
-        run_flutter_command(["adb", "uninstall", "com.royalcourtbd.dhaka_bus"], "Uninstalling existing app...                        ")
+        print(f"{BLUE}Package name: {package_name}{NC}")
+
+        # Try to uninstall existing app first using dynamic package name
+        run_flutter_command(["adb", "uninstall", package_name], "Uninstalling existing app...                        ")
         # Then try to install again
         success = run_flutter_command(["adb", "install", target_apk], "Reinstalling on device...                           ")
-    
+
     return success
 
 @timer_decorator
@@ -398,7 +446,15 @@ def create_and_push_tag():
 def uninstall_app():
     """Uninstall the app from connected device"""
     print(f"{YELLOW}Uninstalling app from device...{NC}\n")
-    success = run_flutter_command(["adb", "uninstall", "com.royalcourtbd.dhaka_bus"], "Uninstalling app...                                 ")
+
+    # Get package name dynamically
+    package_name = get_package_name()
+    if not package_name:
+        print(f"{RED}Cannot proceed without package name{NC}")
+        return False
+
+    print(f"{BLUE}Package name: {package_name}{NC}")
+    success = run_flutter_command(["adb", "uninstall", package_name], "Uninstalling app...                                 ")
     if success:
         print(f"\n{GREEN}✓ App uninstalled successfully!{NC}")
     else:
