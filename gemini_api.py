@@ -19,7 +19,7 @@ BLUE = '\033[0;34m'
 NC = '\033[0m'
 
 # Gemini API configuration
-GEMINI_API_KEY = "AIzaSyAWux-EKBJZKlpjmdSg0mKzajyYjdVEVZU"
+GEMINI_API_KEY = "AIzaSyCP4A8aLNDca8GCKbx6kqATEtKHUoWxiTA"
 
 # Try different model names - use the first one that works
 AVAILABLE_MODELS = [
@@ -36,6 +36,7 @@ def get_api_url(model_name):
 
 def test_model(model_name):
     """Test if a model is available"""
+    print(GEMINI_API_KEY)
     payload = {
         "contents": [{
             "parts": [{
