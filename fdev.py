@@ -622,6 +622,7 @@ def show_usage():
     print("  cache-repair Repair pub cache")
     print("  cleanup      Clean project and get dependencies")
     print("  release-run  Build & install release APK on connected device")
+    print("  install      Install built APK on connected device")
     print("  uninstall    Uninstall app from connected device")
     print("  pod          Update iOS pods")
     print("  tag          Create and push git tag from pubspec version")
@@ -655,6 +656,8 @@ def main():
         cleanup_project()
     elif command == "release-run":
         release_run()
+    elif command == "install":
+        install_apk()
     elif command == "uninstall":
         uninstall_app()
     elif command == "pod":
