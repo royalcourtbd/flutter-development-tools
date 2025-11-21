@@ -19,19 +19,26 @@ BLUE = '\033[0;34m'
 NC = '\033[0m'
 
 # Gemini API configuration
-GEMINI_API_KEY = "AIzaSyCP4A8aLNDca8GCKbx6kqATEtKHUoWxiTA"
+GEMINI_API_KEY = "AIzaSyB2TonBhKkGj2ZLujUvyZvryweeUeu1y5Q"
+
+# OpenRouter API configuration (Fallback)
+OPENROUTER_API_KEY = "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"  # Replace with your OpenRouter API key
+OPENROUTER_MODEL = "google/gemini-2.5-flash"  # You can change to other models like "openai/gpt-4o", "google/gemini-2.0-flash-exp:free"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Try different model names - use the first one that works
+# Updated for 2025: Gemini 1.0 and 1.5 models are retired
 AVAILABLE_MODELS = [
-    "gemini-2.0-flash-exp",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro",
-    "gemini-pro",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash-lite",
+    "gemini-2.5-flash-lite",
 ]
 
 def get_api_url(model_name):
     """Generate API URL for given model"""
+    # Using v1beta for better model compatibility (v1 has limited model support)
     return f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
 
 def test_model(model_name):
@@ -44,7 +51,7 @@ def test_model(model_name):
             }]
         }]
     }
-    
+
     try:
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(
@@ -52,14 +59,28 @@ def test_model(model_name):
             data=data,
             headers={"Content-Type": "application/json"}
         )
-        
+
         with urllib.request.urlopen(req, timeout=10) as response:
+            print(f"{YELLOW}Response Status: {response.status}{NC}")
             if response.status == 200:
                 return True
+            else:
+                response_body = response.read().decode('utf-8')
+                print(f"{RED}Response Body: {response_body}{NC}")
+    except urllib.error.HTTPError as e:
+        # Print HTTP error details
+        print(f"{RED}HTTP Error {e.code}: {e.reason}{NC}")
+        try:
+            error_body = e.read().decode('utf-8')
+            print(f"{RED}Error Body: {error_body}{NC}")
+        except:
+            pass
     except Exception as e:
-        # Silently fail during testing
-        pass
-    
+        # Print error for debugging
+        print(f"{RED}Error: {type(e).__name__}: {str(e)}{NC}")
+        import traceback
+        traceback.print_exc()
+
     return False
 
 def find_working_model():
@@ -89,15 +110,105 @@ else:
     print(f"  2. API key doesn't have access to these models")
     print(f"  3. You've exceeded the rate limit (wait a few minutes)")
     print(f"  4. Network connectivity issues")
+    print(f"{BLUE}Will fallback to OpenRouter API if needed{NC}\n")
     GEMINI_API_URL = get_api_url(AVAILABLE_MODELS[0])
+
+def generate_commit_message_openrouter(git_diff_content):
+    """
+    Generate commit message using OpenRouter API as fallback
+    """
+    if OPENROUTER_API_KEY == "sk-or-v1-YOUR_API_KEY_HERE":
+        print(f"{RED}Error: OpenRouter API key not configured{NC}")
+        print(f"{YELLOW}Please set OPENROUTER_API_KEY in gemini_api.py{NC}")
+        return None
+
+    prompt = f"""Based on the following git diff, generate a commit message following the Angular Conventional Commit format:
+
+<type>(<scope>): <short summary>
+<blank line>
+<body>
+<blank line>
+<footer>
+
+Rules:
+- Use one of these types: feat, fix, docs, style, refactor, test, chore
+- (scope) is optional but should describe the module/component (e.g., auth, cart, ui)
+- Summary should be short (max 50 chars) and in imperative form
+- Body (optional) should explain what and why, not how
+- Footer (optional) should include BREAKING CHANGE or issue references if applicable
+- Use proper emoticons where appropriate
+- Don't give any long boring texts, STRICTLY no explanations needed
+
+Git diff content:
+{git_diff_content}
+
+Return only the commit message without any additional text or explanations."""
+
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "max_tokens": 500,
+        "temperature": 0.7
+    }
+
+    try:
+        print(f"{YELLOW}Using OpenRouter fallback ({OPENROUTER_MODEL})...{NC}")
+
+        # Prepare request
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            OPENROUTER_API_URL,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://github.com/your-repo",  # Optional
+                "X-Title": "Flutter Dev Tools"  # Optional
+            }
+        )
+
+        # Make request
+        with urllib.request.urlopen(req, timeout=30) as response:
+            if response.status == 200:
+                result = json.loads(response.read().decode('utf-8'))
+
+                if 'choices' in result and len(result['choices']) > 0:
+                    commit_message = result['choices'][0]['message']['content'].strip()
+                    print(f"{GREEN}✓ Commit message generated successfully (OpenRouter){NC}")
+                    return commit_message
+                else:
+                    print(f"{RED}Error: No content generated from OpenRouter API{NC}")
+                    return None
+            else:
+                print(f"{RED}Error: OpenRouter API request failed with status {response.status}{NC}")
+                return None
+
+    except urllib.error.HTTPError as e:
+        error_body = ""
+        try:
+            error_body = e.read().decode('utf-8')
+        except:
+            pass
+        print(f"{RED}✗ OpenRouter HTTP Error {e.code}: {e.reason}{NC}")
+        print(f"{RED}Details: {error_body}{NC}")
+        return None
+    except Exception as e:
+        print(f"{RED}Error: OpenRouter API failed - {e}{NC}")
+        return None
 
 def generate_commit_message(git_diff_content):
     """
     Generate commit message using Gemini API based on git diff
+    Automatically falls back to OpenRouter if Gemini fails
     """
     if not WORKING_MODEL:
-        print(f"{RED}Error: No working model available{NC}")
-        return None
+        print(f"{YELLOW}Gemini model not available, trying OpenRouter fallback...{NC}")
+        return generate_commit_message_openrouter(git_diff_content)
     
     prompt = f"""Based on the following git diff, generate a commit message following the Angular Conventional Commit format:
 
@@ -163,14 +274,17 @@ Return only the commit message without any additional text or explanations."""
                             return commit_message
                         else:
                             print(f"{RED}Error: Unexpected API response structure{NC}")
-                            return None
+                            print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                            return generate_commit_message_openrouter(git_diff_content)
                     else:
                         print(f"{RED}Error: No content generated from Gemini API{NC}")
-                        return None
+                        print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                        return generate_commit_message_openrouter(git_diff_content)
                 else:
                     print(f"{RED}Error: Gemini API request failed with status {response.status}{NC}")
                     print(f"{RED}Response: {response.read().decode('utf-8')}{NC}")
-                    return None
+                    print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                    return generate_commit_message_openrouter(git_diff_content)
 
         except urllib.error.HTTPError as e:
             error_body = ""
@@ -186,23 +300,28 @@ Return only the commit message without any additional text or explanations."""
                     time.sleep(wait_time)
                     continue
                 else:
-                    print(f"{RED}✗ Error 429: Rate limit exceeded. Please try again later.{NC}")
-                    return None
+                    print(f"{RED}✗ Error 429: Rate limit exceeded.{NC}")
+                    print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                    return generate_commit_message_openrouter(git_diff_content)
             elif e.code == 404:
                 print(f"{RED}✗ Error 404: Model not found - {WORKING_MODEL}{NC}")
                 print(f"{RED}Error details: {error_body}{NC}")
-                return None
+                print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                return generate_commit_message_openrouter(git_diff_content)
             elif e.code == 400:
                 print(f"{RED}✗ Bad Request (400): {error_body}{NC}")
-                return None
+                print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                return generate_commit_message_openrouter(git_diff_content)
             elif e.code == 403:
                 print(f"{RED}✗ Error 403: API key may be invalid or doesn't have permission{NC}")
                 print(f"{RED}Error details: {error_body}{NC}")
-                return None
+                print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                return generate_commit_message_openrouter(git_diff_content)
             else:
                 print(f"{RED}✗ HTTP Error {e.code}: {e.reason}{NC}")
                 print(f"{RED}Details: {error_body}{NC}")
-                return None
+                print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+                return generate_commit_message_openrouter(git_diff_content)
                 
         except urllib.error.URLError as e:
             print(f"{RED}Error: Network request failed - {e}{NC}")
@@ -213,12 +332,19 @@ Return only the commit message without any additional text or explanations."""
             return None
         except json.JSONDecodeError as e:
             print(f"{RED}Error: Failed to parse API response - {e}{NC}")
-            return None
+            print(f"{YELLOW}Trying OpenRouter fallback...{NC}")
+            return generate_commit_message_openrouter(git_diff_content)
         except Exception as e:
             print(f"{RED}Error: Unexpected error - {e}{NC}")
+            if attempt == max_retries - 1:
+                # Last attempt failed, try OpenRouter fallback
+                print(f"{YELLOW}All Gemini attempts failed, trying OpenRouter fallback...{NC}")
+                return generate_commit_message_openrouter(git_diff_content)
             return None
 
-    return None
+    # All retries exhausted, try OpenRouter fallback
+    print(f"{YELLOW}Gemini API failed after {max_retries} attempts, trying OpenRouter fallback...{NC}")
+    return generate_commit_message_openrouter(git_diff_content)
 
 def test_api_connection():
     """
