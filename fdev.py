@@ -301,6 +301,7 @@ def install_apk():
     Installs the built APK on a connected Android device using adb.
     Tries to install arm64-v8a APK first if available.
     Handles signature mismatch by uninstalling existing app first.
+    Automatically launches the app after successful installation.
     """
     apk_dir = Path("build/app/outputs/flutter-apk")
     apk_files = [str(f) for f in apk_dir.glob("*.apk")] if apk_dir.exists() else []
@@ -336,6 +337,23 @@ def install_apk():
         run_flutter_command(["adb", "uninstall", package_name], "Uninstalling existing app...                        ")
         # Then try to install again
         success = run_flutter_command(["adb", "install", target_apk], "Reinstalling on device...                           ")
+
+    # Launch app after successful installation
+    if success:
+        package_name = get_package_name()
+        if package_name:
+            print(f"{YELLOW}Launching app...{NC}")
+            # Launch the app using monkey command (works on all devices)
+            launch_success = run_flutter_command(
+                ["adb", "shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"],
+                "Starting app on device...                           "
+            )
+            if launch_success:
+                print(f"{GREEN}✓ App launched successfully!{NC}")
+            else:
+                print(f"{YELLOW}App installed but failed to launch. Please open manually.{NC}")
+        else:
+            print(f"{YELLOW}App installed but package name not found for launching.{NC}")
 
     return success
 
