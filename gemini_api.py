@@ -22,7 +22,7 @@ NC = '\033[0m'
 GEMINI_API_KEY = "AIzaSyB2TonBhKkGj2ZLujUvyZvryweeUeu1y5Q"
 
 # OpenRouter API configuration (Fallback)
-OPENROUTER_API_KEY = "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"  # Replace with your OpenRouter API key
+OPENROUTER_API_KEY = "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"  # Replace with your OpenRouter API key
 OPENROUTER_MODEL = "google/gemini-2.5-flash"  # You can change to other models like "openai/gpt-4o", "google/gemini-2.0-flash-exp:free"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
