@@ -462,22 +462,105 @@ def create_and_push_tag():
     return True
 
 def uninstall_app():
-    """Uninstall the app from connected device"""
+    """Uninstall the app from connected device (Android/iOS)"""
     print(f"{YELLOW}Uninstalling app from device...{NC}\n")
 
-    # Get package name dynamically
-    package_name = get_package_name()
-    if not package_name:
-        print(f"{RED}Cannot proceed without package name{NC}")
-        return False
+    # Check which device is connected
+    try:
+        # Check for iOS simulator
+        ios_check = subprocess.run(
+            ["xcrun", "simctl", "list", "devices", "booted"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        ios_connected = ios_check.returncode == 0 and "Booted" in ios_check.stdout
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        ios_connected = False
 
-    print(f"{BLUE}Package name: {package_name}{NC}")
-    success = run_flutter_command(["adb", "uninstall", package_name], "Uninstalling app...                                 ")
-    if success:
-        print(f"\n{GREEN}✓ App uninstalled successfully!{NC}")
+    try:
+        # Check for Android device
+        android_check = subprocess.run(
+            ["adb", "devices"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        android_connected = android_check.returncode == 0 and len(android_check.stdout.strip().split('\n')) > 1
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        android_connected = False
+
+    # Handle iOS Simulator
+    if ios_connected and not android_connected:
+        print(f"{BLUE}iOS Simulator detected{NC}")
+
+        # Get bundle identifier from iOS
+        info_plist_path = Path("ios/Runner/Info.plist")
+        if not info_plist_path.exists():
+            print(f"{RED}Error: Info.plist not found{NC}")
+            return False
+
+        try:
+            # Extract bundle identifier using PlistBuddy
+            result = subprocess.run(
+                ["/usr/libexec/PlistBuddy", "-c", "Print CFBundleIdentifier", str(info_plist_path)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            bundle_id = result.stdout.strip()
+
+            if not bundle_id or bundle_id.startswith("$("):
+                # Fallback to package name from Android
+                bundle_id = get_package_name()
+                if not bundle_id:
+                    print(f"{RED}Cannot get bundle identifier{NC}")
+                    return False
+
+            print(f"{BLUE}Bundle ID: {bundle_id}{NC}")
+
+            # Uninstall from iOS simulator
+            success = run_flutter_command(
+                ["xcrun", "simctl", "uninstall", "booted", bundle_id],
+                "Uninstalling from iOS simulator...                  "
+            )
+
+            if success:
+                print(f"\n{GREEN}✓ App uninstalled successfully from iOS!{NC}")
+            else:
+                print(f"\n{RED}✗ Failed to uninstall app from iOS!{NC}")
+            return success
+
+        except subprocess.CalledProcessError as e:
+            print(f"{RED}Error getting bundle identifier: {e}{NC}")
+            return False
+
+    # Handle Android Device
+    elif android_connected:
+        print(f"{BLUE}Android device detected{NC}")
+
+        # Get package name dynamically
+        package_name = get_package_name()
+        if not package_name:
+            print(f"{RED}Cannot proceed without package name{NC}")
+            return False
+
+        print(f"{BLUE}Package name: {package_name}{NC}")
+        success = run_flutter_command(
+            ["adb", "uninstall", package_name],
+            "Uninstalling from Android...                        "
+        )
+
+        if success:
+            print(f"\n{GREEN}✓ App uninstalled successfully from Android!{NC}")
+        else:
+            print(f"\n{RED}✗ Failed to uninstall app from Android!{NC}")
+        return success
+
     else:
-        print(f"\n{RED}✗ Failed to uninstall app!{NC}")
-    return success
+        print(f"{RED}No device/simulator detected!{NC}")
+        print(f"{YELLOW}Please connect an Android device or start an iOS simulator{NC}")
+        return False
 
 @timer_decorator
 def smart_commit():
