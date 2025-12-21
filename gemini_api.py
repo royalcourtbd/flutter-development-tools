@@ -9,10 +9,18 @@ import requests
 import json
 import os
 import time
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# First try to load from script's directory (for global installation)
+script_dir = Path(__file__).parent
+env_path = script_dir / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    # Fallback to current directory
+    load_dotenv()
 
 # Colors for output
 RED = '\033[0;31m'
