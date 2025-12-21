@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Groq API service for generating git commit messages
+Multi AI Service API for generating git commit messages
+Supports: Groq, Mistral, SambaNova, OpenRouter
 """
 
 import requests
@@ -20,21 +21,55 @@ YELLOW = '\033[1;33m'
 BLUE = '\033[0;34m'
 NC = '\033[0m'
 
-# Groq API configuration - Load from environment variables
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_API_URL = os.getenv("GROQ_API_URL", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL",)
+# Load default AI service selection
+DEFAULT_AI_SERVICE = os.getenv("DEFAULT_AI_SERVICE", "groq").lower()
+
+# All AI service configurations
+AI_CONFIGS = {
+    "groq": {
+        "api_key": os.getenv("GROQ_API_KEY", ""),
+        "api_url": os.getenv("GROQ_API_URL", ""),
+        "model": os.getenv("GROQ_MODEL", "")
+    },
+    "mistral": {
+        "api_key": os.getenv("MISTRAL_API_KEY", ""),
+        "api_url": os.getenv("MISTRAL_API_URL", ""),
+        "model": os.getenv("MISTRAL_MODEL", "")
+    },
+    "sambanova": {
+        "api_key": os.getenv("SAMBANOVA_API_KEY", ""),
+        "api_url": os.getenv("SAMBANOVA_API_URL", ""),
+        "model": os.getenv("SAMBANOVA_MODEL", "")
+    },
+    "openrouter": {
+        "api_key": os.getenv("OPENROUTER_API_KEY", ""),
+        "api_url": os.getenv("OPENROUTER_API_URL", ""),
+        "model": os.getenv("OPENROUTER_MODEL", "")
+    }
+}
+
+# Validate selected service
+if DEFAULT_AI_SERVICE not in AI_CONFIGS:
+    print(f"{RED}✗ Error: Invalid AI service '{DEFAULT_AI_SERVICE}'{NC}")
+    print(f"{YELLOW}→ Available services: {', '.join(AI_CONFIGS.keys())}{NC}")
+    exit(1)
+
+# Get current service config
+current_config = AI_CONFIGS[DEFAULT_AI_SERVICE]
 
 # Validate API key
-if not GROQ_API_KEY:
-    print(f"{RED}✗ Error: GROQ_API_KEY not found in environment variables{NC}")
-    print(f"{YELLOW}→ Please set it in .env file or export GROQ_API_KEY='your-key-here'{NC}")
+if not current_config["api_key"]:
+    print(f"{RED}✗ Error: API key not found for {DEFAULT_AI_SERVICE.upper()}{NC}")
+    print(f"{YELLOW}→ Please set {DEFAULT_AI_SERVICE.upper()}_API_KEY in .env file{NC}")
     exit(1)
 
 def generate_commit_message(git_diff_content):
     """
-    Generate commit message using Groq API based on git diff
+    Generate commit message using selected AI service based on git diff
     """
+    # Get current service config
+    config = AI_CONFIGS[DEFAULT_AI_SERVICE]
+
     prompt = f"""Based on the following git diff, generate a commit message following the Angular Conventional Commit format:
 
 <type>(<scope>): <short summary>
@@ -58,7 +93,7 @@ Git diff content:
 Return only the commit message without any additional text or explanations."""
 
     payload = {
-        "model": GROQ_MODEL,
+        "model": config["model"],
         "messages": [
             {
                 "role": "user",
@@ -71,7 +106,7 @@ Return only the commit message without any additional text or explanations."""
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {config['api_key']}",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
 
@@ -80,11 +115,11 @@ Return only the commit message without any additional text or explanations."""
 
     for attempt in range(max_retries):
         try:
-            print(f"{YELLOW}Generating commit message using Groq AI ({GROQ_MODEL})... (Attempt {attempt + 1}/{max_retries}){NC}")
+            print(f"{YELLOW}Generating commit message using {DEFAULT_AI_SERVICE.upper()} AI ({config['model']})... (Attempt {attempt + 1}/{max_retries}){NC}")
 
             # Make request
             response = requests.post(
-                GROQ_API_URL,
+                config["api_url"],
                 json=payload,
                 headers=headers,
                 timeout=30
@@ -95,10 +130,10 @@ Return only the commit message without any additional text or explanations."""
 
                 if 'choices' in result and len(result['choices']) > 0:
                     commit_message = result['choices'][0]['message']['content'].strip()
-                    print(f"{GREEN}✓ Commit message generated successfully{NC}")
+                    print(f"{GREEN}✓ Commit message generated successfully using {DEFAULT_AI_SERVICE.upper()}{NC}")
                     return commit_message
                 else:
-                    print(f"{RED}Error: No content generated from Groq API{NC}")
+                    print(f"{RED}Error: No content generated from {DEFAULT_AI_SERVICE.upper()} API{NC}")
                     if attempt < max_retries - 1:
                         print(f"{YELLOW}Retrying in {retry_delay} seconds...{NC}")
                         time.sleep(retry_delay)
@@ -116,7 +151,7 @@ Return only the commit message without any additional text or explanations."""
                     return None
 
             elif response.status_code == 404:
-                print(f"{RED}✗ Error 404: Model not found - {GROQ_MODEL}{NC}")
+                print(f"{RED}✗ Error 404: Model not found - {config['model']}{NC}")
                 print(f"{RED}Error details: {response.text}{NC}")
                 return None
 
@@ -176,17 +211,20 @@ Return only the commit message without any additional text or explanations."""
             return None
 
     # All retries exhausted
-    print(f"{RED}✗ Groq API failed after {max_retries} attempts{NC}")
+    print(f"{RED}✗ {DEFAULT_AI_SERVICE.upper()} API failed after {max_retries} attempts{NC}")
     return None
 
 def test_api_connection():
     """
-    Test Groq API connection
+    Test selected AI service API connection
     """
+    # Get current service config
+    config = AI_CONFIGS[DEFAULT_AI_SERVICE]
+
     test_prompt = "Hello, respond with 'API connection successful'"
 
     payload = {
-        "model": GROQ_MODEL,
+        "model": config["model"],
         "messages": [
             {
                 "role": "user",
@@ -199,16 +237,16 @@ def test_api_connection():
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {config['api_key']}",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
 
     try:
-        print(f"{BLUE}Testing Groq API connection with {GROQ_MODEL}...{NC}")
+        print(f"{BLUE}Testing {DEFAULT_AI_SERVICE.upper()} API connection with {config['model']}...{NC}")
 
         # Make request
         response = requests.post(
-            GROQ_API_URL,
+            config["api_url"],
             json=payload,
             headers=headers,
             timeout=10
@@ -216,7 +254,7 @@ def test_api_connection():
 
         if response.status_code == 200:
             result = response.json()
-            print(f"{GREEN}✓ Groq API connection successful{NC}")
+            print(f"{GREEN}✓ {DEFAULT_AI_SERVICE.upper()} API connection successful{NC}")
 
             # Print response for debugging
             if 'choices' in result and len(result['choices']) > 0:
@@ -231,7 +269,7 @@ def test_api_connection():
             return False
 
         elif response.status_code == 404:
-            print(f"{RED}✗ HTTP Error 404: Model not found - {GROQ_MODEL}{NC}")
+            print(f"{RED}✗ HTTP Error 404: Model not found - {config['model']}{NC}")
             print(f"{RED}Error details: {response.text}{NC}")
             return False
 
@@ -251,7 +289,7 @@ def test_api_connection():
             return False
 
         else:
-            print(f"{RED}✗ Groq API connection failed with status {response.status_code}{NC}")
+            print(f"{RED}✗ {DEFAULT_AI_SERVICE.upper()} API connection failed with status {response.status_code}{NC}")
             print(f"{RED}Response: {response.text}{NC}")
             return False
 
@@ -264,12 +302,12 @@ def test_api_connection():
         return False
 
     except Exception as e:
-        print(f"{RED}✗ Groq API connection failed: {e}{NC}")
+        print(f"{RED}✗ {DEFAULT_AI_SERVICE.upper()} API connection failed: {e}{NC}")
         return False
 
 if __name__ == "__main__":
     # Test the API connection
     print(f"{BLUE}{'='*50}{NC}")
-    print(f"{BLUE}Groq API Connection Test{NC}")
+    print(f"{BLUE}{DEFAULT_AI_SERVICE.upper()} API Connection Test{NC}")
     print(f"{BLUE}{'='*50}{NC}")
     test_api_connection()
