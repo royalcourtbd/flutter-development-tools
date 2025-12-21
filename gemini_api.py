@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Groq API service for generating git commit messages
 """
 
-import urllib.request
-import urllib.parse
-import urllib.error
+import requests
 import json
-import sys
 import os
 import time
 
@@ -19,7 +17,7 @@ BLUE = '\033[0;34m'
 NC = '\033[0m'
 
 # Groq API configuration
-GROQ_API_KEY = ""
+GROQ_API_KEY = ""  # এখানে আপনার API key দিন
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Available Groq models - use the first one by default
@@ -64,6 +62,12 @@ Return only the commit message without any additional text or explanations."""
         "temperature": 0.7
     }
 
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
     max_retries = 3
     retry_delay = 2
 
@@ -71,50 +75,30 @@ Return only the commit message without any additional text or explanations."""
         try:
             print(f"{YELLOW}Generating commit message using Groq AI ({GROQ_MODEL})... (Attempt {attempt + 1}/{max_retries}){NC}")
 
-            # Prepare request
-            data = json.dumps(payload).encode('utf-8')
-            req = urllib.request.Request(
+            # Make request
+            response = requests.post(
                 GROQ_API_URL,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {GROQ_API_KEY}"
-                }
+                json=payload,
+                headers=headers,
+                timeout=30
             )
 
-            # Make request
-            with urllib.request.urlopen(req, timeout=30) as response:
-                if response.status == 200:
-                    result = json.loads(response.read().decode('utf-8'))
+            if response.status_code == 200:
+                result = response.json()
 
-                    if 'choices' in result and len(result['choices']) > 0:
-                        commit_message = result['choices'][0]['message']['content'].strip()
-                        print(f"{GREEN}✓ Commit message generated successfully{NC}")
-                        return commit_message
-                    else:
-                        print(f"{RED}Error: No content generated from Groq API{NC}")
-                        if attempt < max_retries - 1:
-                            print(f"{YELLOW}Retrying in {retry_delay} seconds...{NC}")
-                            time.sleep(retry_delay)
-                            continue
-                        return None
+                if 'choices' in result and len(result['choices']) > 0:
+                    commit_message = result['choices'][0]['message']['content'].strip()
+                    print(f"{GREEN}✓ Commit message generated successfully{NC}")
+                    return commit_message
                 else:
-                    print(f"{RED}Error: Groq API request failed with status {response.status}{NC}")
-                    print(f"{RED}Response: {response.read().decode('utf-8')}{NC}")
+                    print(f"{RED}Error: No content generated from Groq API{NC}")
                     if attempt < max_retries - 1:
                         print(f"{YELLOW}Retrying in {retry_delay} seconds...{NC}")
                         time.sleep(retry_delay)
                         continue
                     return None
 
-        except urllib.error.HTTPError as e:
-            error_body = ""
-            try:
-                error_body = e.read().decode('utf-8')
-            except:
-                pass
-
-            if e.code == 429:
+            elif response.status_code == 429:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)
                     print(f"{YELLOW}⚠ Rate limit reached (429). Waiting {wait_time} seconds...{NC}")
@@ -123,37 +107,51 @@ Return only the commit message without any additional text or explanations."""
                 else:
                     print(f"{RED}✗ Error 429: Rate limit exceeded.{NC}")
                     return None
-            elif e.code == 404:
+
+            elif response.status_code == 404:
                 print(f"{RED}✗ Error 404: Model not found - {GROQ_MODEL}{NC}")
-                print(f"{RED}Error details: {error_body}{NC}")
+                print(f"{RED}Error details: {response.text}{NC}")
                 return None
-            elif e.code == 400:
-                print(f"{RED}✗ Bad Request (400): {error_body}{NC}")
+
+            elif response.status_code == 400:
+                print(f"{RED}✗ Bad Request (400): {response.text}{NC}")
                 return None
-            elif e.code == 401:
+
+            elif response.status_code == 401:
                 print(f"{RED}✗ Error 401: API key is invalid or unauthorized{NC}")
-                print(f"{RED}Error details: {error_body}{NC}")
+                print(f"{RED}Error details: {response.text}{NC}")
                 return None
-            elif e.code == 403:
+
+            elif response.status_code == 403:
                 print(f"{RED}✗ Error 403: API key doesn't have permission{NC}")
-                print(f"{RED}Error details: {error_body}{NC}")
+                print(f"{RED}Error details: {response.text}{NC}")
                 return None
+
             else:
-                print(f"{RED}✗ HTTP Error {e.code}: {e.reason}{NC}")
-                print(f"{RED}Details: {error_body}{NC}")
+                print(f"{RED}✗ HTTP Error {response.status_code}: {response.reason}{NC}")
+                print(f"{RED}Details: {response.text}{NC}")
                 if attempt < max_retries - 1:
                     print(f"{YELLOW}Retrying in {retry_delay} seconds...{NC}")
                     time.sleep(retry_delay)
                     continue
                 return None
 
-        except urllib.error.URLError as e:
-            print(f"{RED}Error: Network request failed - {e}{NC}")
+        except requests.exceptions.Timeout:
+            print(f"{RED}Error: Request timed out{NC}")
             if attempt < max_retries - 1:
                 print(f"{YELLOW}Retrying in {retry_delay} seconds...{NC}")
                 time.sleep(retry_delay)
                 continue
             return None
+
+        except requests.exceptions.ConnectionError as e:
+            print(f"{RED}Error: Network connection failed - {e}{NC}")
+            if attempt < max_retries - 1:
+                print(f"{YELLOW}Retrying in {retry_delay} seconds...{NC}")
+                time.sleep(retry_delay)
+                continue
+            return None
+
         except json.JSONDecodeError as e:
             print(f"{RED}Error: Failed to parse API response - {e}{NC}")
             if attempt < max_retries - 1:
@@ -161,6 +159,7 @@ Return only the commit message without any additional text or explanations."""
                 time.sleep(retry_delay)
                 continue
             return None
+
         except Exception as e:
             print(f"{RED}Error: Unexpected error - {e}{NC}")
             if attempt < max_retries - 1:
@@ -191,61 +190,72 @@ def test_api_connection():
         "temperature": 0.7
     }
 
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
     try:
         print(f"{BLUE}Testing Groq API connection with {GROQ_MODEL}...{NC}")
 
-        # Prepare request
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(
+        # Make request
+        response = requests.post(
             GROQ_API_URL,
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {GROQ_API_KEY}"
-            }
+            json=payload,
+            headers=headers,
+            timeout=10
         )
 
-        # Make request
-        with urllib.request.urlopen(req, timeout=10) as response:
-            if response.status == 200:
-                result = json.loads(response.read().decode('utf-8'))
-                print(f"{GREEN}✓ Groq API connection successful{NC}")
+        if response.status_code == 200:
+            result = response.json()
+            print(f"{GREEN}✓ Groq API connection successful{NC}")
 
-                # Print response for debugging
-                if 'choices' in result and len(result['choices']) > 0:
-                    text = result['choices'][0]['message']['content']
-                    print(f"{BLUE}API Response: {text}{NC}")
+            # Print response for debugging
+            if 'choices' in result and len(result['choices']) > 0:
+                text = result['choices'][0]['message']['content']
+                print(f"{BLUE}API Response: {text}{NC}")
 
-                return True
-            else:
-                print(f"{RED}✗ Groq API connection failed with status {response.status}{NC}")
-                return False
+            return True
 
-    except urllib.error.HTTPError as e:
-        error_body = ""
-        try:
-            error_body = e.read().decode('utf-8')
-        except:
-            pass
+        elif response.status_code == 429:
+            print(f"{RED}✗ HTTP Error 429: Rate limit reached{NC}")
+            print(f"{YELLOW}⚠ Wait a few minutes and try again.{NC}")
+            return False
 
-        print(f"{RED}✗ HTTP Error {e.code}: {e.reason}{NC}")
-        if e.code == 429:
-            print(f"{YELLOW}⚠ Rate limit reached. Wait a few minutes and try again.{NC}")
-        elif e.code == 404:
-            print(f"{RED}Model not found: {GROQ_MODEL}{NC}")
-            print(f"{RED}Error details: {error_body}{NC}")
-        elif e.code == 400:
-            print(f"{RED}Error details: {error_body}{NC}")
-        elif e.code == 401:
-            print(f"{RED}API key is invalid or unauthorized{NC}")
-            print(f"{RED}Error details: {error_body}{NC}")
-        elif e.code == 403:
-            print(f"{RED}API key doesn't have permission{NC}")
-            print(f"{RED}Error details: {error_body}{NC}")
+        elif response.status_code == 404:
+            print(f"{RED}✗ HTTP Error 404: Model not found - {GROQ_MODEL}{NC}")
+            print(f"{RED}Error details: {response.text}{NC}")
+            return False
+
+        elif response.status_code == 400:
+            print(f"{RED}✗ HTTP Error 400: Bad Request{NC}")
+            print(f"{RED}Error details: {response.text}{NC}")
+            return False
+
+        elif response.status_code == 401:
+            print(f"{RED}✗ HTTP Error 401: API key is invalid or unauthorized{NC}")
+            print(f"{RED}Error details: {response.text}{NC}")
+            return False
+
+        elif response.status_code == 403:
+            print(f"{RED}✗ HTTP Error 403: API key doesn't have permission{NC}")
+            print(f"{RED}Error details: {response.text}{NC}")
+            return False
+
+        else:
+            print(f"{RED}✗ Groq API connection failed with status {response.status_code}{NC}")
+            print(f"{RED}Response: {response.text}{NC}")
+            return False
+
+    except requests.exceptions.Timeout:
+        print(f"{RED}✗ Request timed out{NC}")
         return False
-    except urllib.error.URLError as e:
-        print(f"{RED}✗ Network Error: {e.reason}{NC}")
+
+    except requests.exceptions.ConnectionError as e:
+        print(f"{RED}✗ Network Error: {e}{NC}")
         return False
+
     except Exception as e:
         print(f"{RED}✗ Groq API connection failed: {e}{NC}")
         return False
