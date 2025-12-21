@@ -8,6 +8,10 @@ import requests
 import json
 import os
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Colors for output
 RED = '\033[0;31m'
@@ -16,13 +20,16 @@ YELLOW = '\033[1;33m'
 BLUE = '\033[0;34m'
 NC = '\033[0m'
 
-# Groq API configuration
-GROQ_API_KEY = ""  # এখানে আপনার API key দিন
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+# Groq API configuration - Load from environment variables
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_API_URL = os.getenv("GROQ_API_URL", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL",)
 
-# Available Groq models - use the first one by default
-# You can change to other models like "mixtral-8x7b-32768", "llama-3.1-70b-versatile"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# Validate API key
+if not GROQ_API_KEY:
+    print(f"{RED}✗ Error: GROQ_API_KEY not found in environment variables{NC}")
+    print(f"{YELLOW}→ Please set it in .env file or export GROQ_API_KEY='your-key-here'{NC}")
+    exit(1)
 
 def generate_commit_message(git_diff_content):
     """
