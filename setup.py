@@ -8,6 +8,7 @@ import os
 import sys
 import platform
 import shutil
+import subprocess
 from pathlib import Path
 
 # Colors for output
@@ -28,6 +29,50 @@ def get_system_info():
         'home': Path.home(),
         'python': sys.executable
     }
+
+def install_dependencies():
+    """Install required Python dependencies"""
+    print(f"{YELLOW}Checking and installing dependencies...{NC}")
+
+    dependencies = ['python-dotenv', 'requests']
+
+    for package in dependencies:
+        try:
+            __import__(package.replace('-', '_'))
+            print(f"{GREEN}✓ {package} is already installed{NC}")
+        except ImportError:
+            print(f"{YELLOW}Installing {package}...{NC}")
+
+            # Try different installation methods
+            install_methods = [
+                # Method 1: Standard pip install
+                [sys.executable, '-m', 'pip', 'install', package],
+                # Method 2: With --user flag
+                [sys.executable, '-m', 'pip', 'install', '--user', package],
+                # Method 3: With --break-system-packages (for externally managed environments)
+                [sys.executable, '-m', 'pip', 'install', '--break-system-packages', package],
+            ]
+
+            installed = False
+            for method in install_methods:
+                try:
+                    subprocess.check_call(method,
+                                        stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL)
+                    print(f"{GREEN}✓ Successfully installed {package}{NC}")
+                    installed = True
+                    break
+                except subprocess.CalledProcessError:
+                    continue
+
+            if not installed:
+                print(f"{RED}✗ Failed to install {package}{NC}")
+                print(f"{YELLOW}→ Please install manually:{NC}")
+                print(f"{BLUE}   pip3 install --user {package}{NC}")
+                print(f"{BLUE}   or{NC}")
+                print(f"{BLUE}   pip3 install --break-system-packages {package}{NC}")
+
+    print()
 
 def create_batch_wrapper(script_path, wrapper_path, script_name):
     """Create Windows batch wrapper"""
@@ -72,12 +117,27 @@ def setup_windows(system_info):
     
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
-    
+
     if current_dir != scripts_dir:
         for script_file, _ in scripts_to_copy:
             if (current_dir / script_file).exists():
                 shutil.copy2(current_dir / script_file, scripts_dir / script_file)
                 print(f"{GREEN}✓ Copied {script_file}{NC}")
+
+        # Copy .env.example if it exists
+        env_example = current_dir / '.env.example'
+        if env_example.exists():
+            shutil.copy2(env_example, scripts_dir / '.env.example')
+            print(f"{GREEN}✓ Copied .env.example{NC}")
+
+            # Check if .env exists, if not create from example
+            env_file = scripts_dir / '.env'
+            if not env_file.exists():
+                shutil.copy2(env_example, env_file)
+                print(f"{YELLOW}✓ Created .env file from .env.example{NC}")
+                print(f"{YELLOW}→ Please edit {env_file} and add your API keys{NC}")
+            else:
+                print(f"{GREEN}✓ .env file already exists (keeping your configuration){NC}")
     
     # Create batch wrappers for all scripts
     for script_file, command_name in scripts_to_copy:
@@ -121,12 +181,27 @@ def setup_unix(system_info):
     
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
-    
+
     if current_dir != scripts_dir:
         for script_file, _ in scripts_to_copy:
             if (current_dir / script_file).exists():
                 shutil.copy2(current_dir / script_file, scripts_dir / script_file)
                 print(f"{GREEN}✓ Copied {script_file}{NC}")
+
+        # Copy .env.example if it exists
+        env_example = current_dir / '.env.example'
+        if env_example.exists():
+            shutil.copy2(env_example, scripts_dir / '.env.example')
+            print(f"{GREEN}✓ Copied .env.example{NC}")
+
+            # Check if .env exists, if not create from example
+            env_file = scripts_dir / '.env'
+            if not env_file.exists():
+                shutil.copy2(env_example, env_file)
+                print(f"{YELLOW}✓ Created .env file from .env.example{NC}")
+                print(f"{YELLOW}→ Please edit {env_file} and add your API keys{NC}")
+            else:
+                print(f"{GREEN}✓ .env file already exists (keeping your configuration){NC}")
     
     # Make all scripts executable
     for script_file, _ in scripts_to_copy:
@@ -205,17 +280,20 @@ def update_scripts_for_cross_platform():
 def main():
     print(f"{BLUE}Flutter Tools Cross-Platform Setup{NC}")
     print(f"{BLUE}=================================={NC}\\n")
-    
+
     system_info = get_system_info()
     print(f"Platform: {GREEN}{system_info['platform']}{NC}")
     print(f"Home: {GREEN}{system_info['home']}{NC}")
     print(f"Python: {GREEN}{system_info['python']}{NC}\\n")
-    
+
+    # Install required dependencies first
+    install_dependencies()
+
     if system_info['platform'] == 'Windows':
         setup_windows(system_info)
     else:
         setup_unix(system_info)
-    
+
     # Update scripts for cross-platform compatibility
     update_scripts_for_cross_platform()
     
@@ -223,13 +301,21 @@ def main():
     print(f"\n{BLUE}Available commands:{NC}")
     print(f"  fdev apk                    # Build APK")
     print(f"  fdev setup                  # Full setup")
+    print(f"  fdev commit                 # AI-powered commit (uses gemini-api)")
     print(f"  create-page page user_info  # Create page structure")
-    print(f"  gemini-api                  # Generate AI commit messages")
+    print(f"  gemini-api                  # Multi-AI service (Groq/Mistral/SambaNova/OpenRouter)")
     print(f"  git-diff-editor             # Git diff editor with AI prompts")
-    
+
     print(f"\\n{BLUE}Master files location:{NC}")
     print(f"  {GREEN}{system_info['home']}/scripts/flutter-tools/{NC}")
-    
+
+    print(f"\\n{BLUE}AI Configuration:{NC}")
+    env_file_path = system_info['home'] / 'scripts' / 'flutter-tools' / '.env'
+    print(f"  Edit: {GREEN}{env_file_path}{NC}")
+    print(f"  {YELLOW}1. Add your API key for your preferred AI service{NC}")
+    print(f"  {YELLOW}2. Set DEFAULT_AI_SERVICE to: groq/mistral/sambanova/openrouter{NC}")
+    print(f"  {YELLOW}3. Test with: {BLUE}python3 {system_info['home']}/scripts/flutter-tools/gemini_api.py{NC}")
+
     if system_info['platform'] == 'Windows':
         print(f"\\n{YELLOW}Note: Restart your terminal or Command Prompt to use the commands{NC}")
     else:
