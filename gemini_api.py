@@ -123,6 +123,9 @@ Return only the commit message without any additional text or explanations."""
 
     for attempt in range(max_retries):
         try:
+            # Print context information
+            diff_size = len(git_diff_content)
+            print(f"{BLUE}→ Git diff size: {diff_size} characters{NC}")
             print(f"{YELLOW}Generating commit message using {DEFAULT_AI_SERVICE.upper()} AI ({config['model']})... (Attempt {attempt + 1}/{max_retries}){NC}")
 
             # Make request
