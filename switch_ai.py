@@ -6,145 +6,21 @@ Usage: python3 switch_ai.py [groq|mistral|sambanova|openrouter]
 
 import sys
 import os
-import re
-import time
 import subprocess
-import platform
 from pathlib import Path
-from functools import wraps
 
-# Colors for output
-RED = '\033[0;31m'
-GREEN = '\033[0;32m'
-YELLOW = '\033[1;33m'
-BLUE = '\033[0;34m'
-NC = '\033[0m'
-MAGENTA = '\033[0;35m'
-CHECKMARK = '\033[32m✓\033[0m'
-CROSS = '\033[31m✗\033[0m'
-
-# Disable colors on Windows CMD (unless using Windows Terminal)
-if platform.system() == "Windows" and not os.environ.get('WT_SESSION'):
-    RED = GREEN = YELLOW = BLUE = NC = MAGENTA = ''
-    CHECKMARK = '✓'
-    CROSS = '✗'
+# Import common utilities
+from common_utils import (
+    RED, GREEN, YELLOW, BLUE, NC, CHECKMARK, CROSS,
+    timer_decorator,
+    run_command_with_spinner,
+    read_env_value,
+    update_env_value,
+    get_user_shell,
+    is_windows
+)
 
 ENV_FILE = ".env"
-
-def timer_decorator(func):
-    """
-    Decorator to automatically add timer functionality to any function
-    """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-
-        # Execute the original function
-        result = func(*args, **kwargs)
-
-        end_time = time.time()
-        total_seconds = end_time - start_time
-        minutes, seconds = divmod(total_seconds, 60)
-
-        print(f"\n{BLUE}======================================================{NC}")
-        print(f"{BLUE}Total time taken: {int(minutes)} minute(s) and {seconds:.2f} seconds.{NC}")
-        print(f"{BLUE}======================================================{NC}")
-
-        return result
-    return wrapper
-
-def show_loading(description, process):
-    """
-    Displays a loading spinner with a custom message while a process is running
-    Parameters:
-        description: Description message to display
-        process: Process object to monitor
-    """
-    spinner_index = 0
-    braille_spinner_list = '⡿⣟⣯⣷⣾⣽⣻⢿'
-    print(description, end='', flush=True)
-    # Continue spinning while the process is running
-    while process.poll() is None:
-        print(f"\b{MAGENTA}{braille_spinner_list[spinner_index]}{NC}", end='', flush=True)
-        spinner_index = (spinner_index + 1) % len(braille_spinner_list)
-        time.sleep(0.025)
-    stdout, stderr = process.communicate()
-    # Display success or failure icon based on the process exit status
-    if process.returncode == 0:
-        print(f"\b{CHECKMARK} ", flush=True)
-        return True
-    else:
-        print(f"\b{CROSS} ", flush=True)
-        if stdout:
-            print(f"\n{GREEN}Output:\n{stdout}{NC}")
-        if stderr:
-            print(f"\n{RED}Error Output:\n{stderr}{NC}")
-        return False
-
-def run_command_with_spinner(cmd_list, description):
-    """
-    Runs a command with a loading spinner
-    Parameters:
-        cmd_list: List of command arguments
-        description: Description to show with spinner
-    Returns:
-        True if successful, False otherwise
-    """
-    shell_needed = platform.system() == "Windows"
-
-    process = subprocess.Popen(
-        cmd_list,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=shell_needed,
-        encoding='utf-8',  # Fix Windows encoding issue
-        errors='replace'  # Replace problematic characters instead of crashing
-    )
-    return show_loading(description, process)
-
-def read_env_value(key):
-    """
-    Read a value from .env file
-    Parameters:
-        key: Environment variable key to read
-    Returns:
-        Value of the key or None if not found
-    """
-    if not os.path.exists(ENV_FILE):
-        return None
-
-    with open(ENV_FILE, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith(f"{key}="):
-                return line.split('=', 1)[1]
-    return None
-
-def update_env_value(key, value):
-    """
-    Update a value in .env file
-    Parameters:
-        key: Environment variable key to update
-        value: New value to set
-    Returns:
-        True if successful, False otherwise
-    """
-    if not os.path.exists(ENV_FILE):
-        print(f"{RED}❌ .env file not found!{NC}")
-        return False
-
-    with open(ENV_FILE, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    # Replace the value using regex
-    pattern = f"^{key}=.*$"
-    replacement = f"{key}={value}"
-    new_content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
-
-    with open(ENV_FILE, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-
-    return True
 
 def show_current_service():
     """
@@ -193,36 +69,12 @@ def run_setup():
         print(f"{RED}❌ Setup failed!{NC}")
         return False
 
-def get_user_shell():
-    """
-    Detect user's shell (zsh, bash, fish, etc.)
-    Returns:
-        Tuple of (shell_name, config_file_path)
-    """
-    home = Path.home()
-    shell_env = os.environ.get('SHELL', '')
-
-    # Detect shell type
-    if 'zsh' in shell_env:
-        return ('zsh', home / '.zshrc')
-    elif 'bash' in shell_env:
-        # Check if .bashrc or .bash_profile exists
-        if (home / '.bashrc').exists():
-            return ('bash', home / '.bashrc')
-        else:
-            return ('bash', home / '.bash_profile')
-    elif 'fish' in shell_env:
-        return ('fish', home / '.config/fish/config.fish')
-    else:
-        # Default to bash
-        return ('bash', home / '.bashrc')
-
 def reload_shell_config():
     """
     Reload shell configuration after successful switch
     Supports zsh, bash, fish on Unix systems
     """
-    if platform.system() == "Windows":
+    if is_windows():
         print(f"\n{YELLOW}⚠️  Windows detected - please restart your terminal{NC}")
         return
 

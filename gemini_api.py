@@ -12,6 +12,9 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Import common utilities
+from common_utils import RED, GREEN, YELLOW, BLUE, NC
+
 # Load environment variables from .env file
 # First try to load from script's directory (for global installation)
 script_dir = Path(__file__).parent
@@ -21,13 +24,6 @@ if env_path.exists():
 else:
     # Fallback to current directory
     load_dotenv()
-
-# Colors for output
-RED = '\033[0;31m'
-GREEN = '\033[0;32m'
-YELLOW = '\033[1;33m'
-BLUE = '\033[0;34m'
-NC = '\033[0m'
 
 # Load default AI service selection
 DEFAULT_AI_SERVICE = os.getenv("DEFAULT_AI_SERVICE", "groq").lower()

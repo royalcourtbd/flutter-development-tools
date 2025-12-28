@@ -2,7 +2,9 @@
 
 import subprocess
 import os
-import platform
+
+# Import common utilities
+from common_utils import open_file_with_default_app
 
 # Use current working directory instead of hardcoded path
 folder_path = os.getcwd()
@@ -23,22 +25,6 @@ text_to_append = '\n================\n\nhere is my changes...give me git push ms
 with open('diff_output.txt', 'a') as file:
     file.write(text_to_append)
 
-# Cross-platform file opening
-def open_file(file_path):
-    """Open file with default editor based on platform"""
-    try:
-        if platform.system() == "Darwin":  # macOS
-            subprocess.run(['open', file_path])
-        elif platform.system() == "Linux":
-            subprocess.run(['xdg-open', file_path])
-        elif platform.system() == "Windows":
-            subprocess.run(['notepad', file_path])
-        else:
-            print(f"Please manually open: {file_path}")
-    except Exception as e:
-        print(f"Error opening file: {e}")
-        print(f"Please manually open: {file_path}")
-
 # Open the file with default editor
-open_file('diff_output.txt')
+open_file_with_default_app('diff_output.txt')
 

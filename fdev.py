@@ -3,43 +3,17 @@ import os
 import sys
 import time
 import signal
-import platform
 import subprocess
 import re
-from functools import wraps
 from pathlib import Path
 
-# Colors for output
-RED = '\033[0;31m'
-GREEN = '\033[0;32m'
-YELLOW = '\033[1;33m'
-BLUE = '\033[0;34m'
-NC = '\033[0m'
-MAGENTA = '\033[0;35m'  
-CHECKMARK = '\033[32m✓\033[0m' 
-CROSS = '\033[31m𐄂\033[0m'
-
-def timer_decorator(func):
-    """
-    Decorator to automatically add timer functionality to any function
-    """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        
-        # Execute the original function
-        result = func(*args, **kwargs)
-        
-        end_time = time.time()
-        total_seconds = end_time - start_time
-        minutes, seconds = divmod(total_seconds, 60)
-        
-        print(f"\n{BLUE}======================================================{NC}")
-        print(f"{BLUE}Total time taken: {int(minutes)} minute(s) and {seconds:.2f} seconds.{NC}")
-        print(f"{BLUE}======================================================{NC}")
-        
-        return result
-    return wrapper
+# Import common utilities
+from common_utils import (
+    RED, GREEN, YELLOW, BLUE, NC, MAGENTA, CHECKMARK, CROSS,
+    timer_decorator,
+    is_windows, is_macos, is_linux,
+    open_directory
+)
 
 def show_loading(description, process):
     """
@@ -133,7 +107,7 @@ def run_flutter_command(cmd_list, description):
         description: Description to show with spinner
     """
     # Windows compatibility for shell commands - NEW LINE ADDED HERE
-    shell_needed = (platform.system() == "Windows" and cmd_list[0] in ['timeout', 'start', 'flutter', 'dart']) or cmd_list[0] == 'pod'
+    shell_needed = (is_windows() and cmd_list[0] in ['timeout', 'start', 'flutter', 'dart']) or cmd_list[0] == 'pod'
 
     process = subprocess.Popen(
         cmd_list,
@@ -144,24 +118,6 @@ def run_flutter_command(cmd_list, description):
         errors='replace'  # Replace problematic characters instead of crashing
     )
     return show_loading(description, process)
-
-def open_directory(directory_path):
-    """Opens a directory based on the operating system"""
-    try:
-        if platform.system() == "Darwin":  # macOS
-            subprocess.run(["open", directory_path])
-        elif platform.system() == "Linux":
-            subprocess.run(["xdg-open", directory_path])
-        elif platform.system() == "Windows":
-            # Convert to absolute path and use Windows path separators
-            abs_path = os.path.abspath(directory_path)
-            # Use explorer to open the directory
-            subprocess.run(["explorer", abs_path], shell=True)
-        else:
-            print(f"Cannot open directory automatically. Please check: {directory_path}")
-    except Exception as e:
-        print(f"Error opening directory: {e}")
-        print(f"Please check: {directory_path}")
 
 @timer_decorator
 def build_apk():
@@ -360,7 +316,7 @@ def install_apk():
 @timer_decorator
 def update_pods():
     """Update iOS pods"""
-    if platform.system() == "Windows":
+    if is_windows():
         print(f"{YELLOW}iOS pods are not supported on Windows{NC}")
         print(f"{BLUE}This command is only available on macOS and Linux{NC}")
         return
@@ -373,7 +329,7 @@ def update_pods():
     try:
         os.remove("Podfile.lock")
         # Use a dummy process for the loading animation
-        if platform.system() == "Windows":
+        if is_windows():
             run_flutter_command(["timeout", "/t", "1", "/nobreak", ">nul"], "Removing Podfile.lock                                 ")
         else:
             run_flutter_command(["sleep", "0.1"], "Removing Podfile.lock                                 ")
@@ -681,9 +637,9 @@ def smart_commit():
         
         # Wait 1.5 seconds to show success message
         time.sleep(1.5)
-        
+
         # Clear terminal after successful commit
-        if platform.system() == "Windows":
+        if is_windows():
             os.system('cls')
         else:
             os.system('clear')
