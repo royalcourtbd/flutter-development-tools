@@ -5,11 +5,9 @@ import time
 import signal
 import platform
 import subprocess
-import glob
-import re  # Added for git tag functionality
+import re
 from functools import wraps
 from pathlib import Path
-import json
 
 # Colors for output
 RED = '\033[0;31m'
