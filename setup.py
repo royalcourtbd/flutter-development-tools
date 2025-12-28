@@ -115,6 +115,9 @@ def setup_windows(system_info):
         ('git_diff_output_editor.py', 'git-diff-editor')
     ]
     
+    # Define utility files that need to be copied (no command wrappers needed)
+    utility_files = ['common_utils.py', 'switch_ai.py']
+    
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
 
@@ -123,6 +126,12 @@ def setup_windows(system_info):
             if (current_dir / script_file).exists():
                 shutil.copy2(current_dir / script_file, scripts_dir / script_file)
                 print(f"{GREEN}✓ Copied {script_file}{NC}")
+        
+        # Copy utility files
+        for util_file in utility_files:
+            if (current_dir / util_file).exists():
+                shutil.copy2(current_dir / util_file, scripts_dir / util_file)
+                print(f"{GREEN}✓ Copied {util_file}{NC}")
 
         # Copy .env file if it exists in current directory
         env_file_current = current_dir / '.env'
@@ -187,6 +196,9 @@ def setup_unix(system_info):
         ('git_diff_output_editor.py', 'git-diff-editor')
     ]
     
+    # Define utility files that need to be copied (no command wrappers needed)
+    utility_files = ['common_utils.py', 'switch_ai.py']
+    
     # Copy scripts to scripts directory (if not already there)
     current_dir = Path(__file__).parent
 
@@ -195,6 +207,12 @@ def setup_unix(system_info):
             if (current_dir / script_file).exists():
                 shutil.copy2(current_dir / script_file, scripts_dir / script_file)
                 print(f"{GREEN}✓ Copied {script_file}{NC}")
+        
+        # Copy utility files
+        for util_file in utility_files:
+            if (current_dir / util_file).exists():
+                shutil.copy2(current_dir / util_file, scripts_dir / util_file)
+                print(f"{GREEN}✓ Copied {util_file}{NC}")
 
         # Copy .env file if it exists in current directory
         env_file_current = current_dir / '.env'
