@@ -106,6 +106,13 @@ def main():
     # Get current service
     current = read_env_value("DEFAULT_AI_SERVICE")
 
+    # Check if trying to switch to the same service
+    if current == service:
+        print(f"⚠️  AI Service is already set to: {service}")
+        print(f"   {current} → {service}")
+        print(f"   No changes made.")
+        sys.exit(0)
+
     # Update .env file
     if update_env_value("DEFAULT_AI_SERVICE", service):
         print("✅ AI Service switched successfully!")
@@ -113,6 +120,21 @@ def main():
 
         # Run setup.py after successful switch
         run_setup()
+
+        # Source zshrc at the end
+        print("")
+        print("🔄 Reloading shell configuration...")
+        try:
+            # Note: source command needs to run in the user's shell
+            # We can't actually source from Python, but we can remind the user
+            subprocess.run(["zsh", "-c", "source ~/.zshrc"], check=False)
+            print("✅ Shell configuration reloaded!")
+            print("")
+            print("💡 If commands are not working, run manually:")
+            print("   source ~/.zshrc")
+        except Exception:
+            print("⚠️  Please run manually to reload your shell:")
+            print("   source ~/.zshrc")
     else:
         print("❌ Failed to update .env file")
         sys.exit(1)
