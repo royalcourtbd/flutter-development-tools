@@ -62,15 +62,15 @@ def show_loading(description, process):
         print(f"\b{CHECKMARK} ", flush=True)
         # Nicher ei stdout statement ta comment out korle r command er out put dekha jabe na.
         # if stdout:
-        #     print(f"\n{GREEN}Output:\n{stdout.decode()}{NC}")
+        #     print(f"\n{GREEN}Output:\n{stdout}{NC}")
         return True
     else:
         print(f"\b{CROSS} ", flush=True)
         # Nicher ei stdout statement ta comment out korle r command er out put dekha jabe na.
         if stdout:
-            print(f"\n{GREEN}Output:\n{stdout.decode()}{NC}")
+            print(f"\n{GREEN}Output:\n{stdout}{NC}")
         if stderr:
-            print(f"\n{RED}Error Output:\n{stderr.decode()}{NC}")
+            print(f"\n{RED}Error Output:\n{stderr}{NC}")
         return False
 
 def get_package_name():
@@ -134,12 +134,14 @@ def run_flutter_command(cmd_list, description):
     """
     # Windows compatibility for shell commands - NEW LINE ADDED HERE
     shell_needed = (platform.system() == "Windows" and cmd_list[0] in ['timeout', 'start', 'flutter', 'dart']) or cmd_list[0] == 'pod'
-    
+
     process = subprocess.Popen(
         cmd_list,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        shell=shell_needed  # NEW PARAMETER ADDED HERE
+        shell=shell_needed,  # NEW PARAMETER ADDED HERE
+        encoding='utf-8',  # Fix Windows encoding issue
+        errors='replace'  # Replace problematic characters instead of crashing
     )
     return show_loading(description, process)
 
@@ -429,8 +431,8 @@ def create_and_push_tag():
     
     # Check if tag already exists
     try:
-        result = subprocess.run(["git", "tag", "-l", tag_name], 
-                              capture_output=True, text=True)
+        result = subprocess.run(["git", "tag", "-l", tag_name],
+                              capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.stdout.strip():
             print(f"{YELLOW}Warning: Tag {tag_name} already exists locally.{NC}")
             user_input = input(f"Do you want to delete and recreate it? (y/N): ")
@@ -470,6 +472,8 @@ def uninstall_app():
             ["xcrun", "simctl", "list", "devices", "booted"],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=5
         )
         ios_connected = ios_check.returncode == 0 and "Booted" in ios_check.stdout
@@ -482,6 +486,8 @@ def uninstall_app():
             ["adb", "devices"],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=5
         )
         android_connected = android_check.returncode == 0 and len(android_check.stdout.strip().split('\n')) > 1
@@ -504,6 +510,8 @@ def uninstall_app():
                 ["/usr/libexec/PlistBuddy", "-c", "Print CFBundleIdentifier", str(info_plist_path)],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 check=True
             )
             bundle_id = result.stdout.strip()
@@ -576,10 +584,10 @@ def smart_commit():
 
     # Check for changes
     try:
-        result = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True)
+        result = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, encoding='utf-8', errors='replace')
         staged_changes = result.stdout.strip()
 
-        result = subprocess.run(["git", "diff"], capture_output=True, text=True)
+        result = subprocess.run(["git", "diff"], capture_output=True, text=True, encoding='utf-8', errors='replace')
         unstaged_changes = result.stdout.strip()
 
         if not staged_changes and not unstaged_changes:
@@ -592,7 +600,7 @@ def smart_commit():
 
     # Get all changes (staged + unstaged)
     try:
-        result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True)
+        result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True, encoding='utf-8', errors='replace')
         all_changes = result.stdout.strip()
 
         if not all_changes:

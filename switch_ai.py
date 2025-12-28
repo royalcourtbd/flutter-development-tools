@@ -76,9 +76,9 @@ def show_loading(description, process):
     else:
         print(f"\b{CROSS} ", flush=True)
         if stdout:
-            print(f"\n{GREEN}Output:\n{stdout.decode()}{NC}")
+            print(f"\n{GREEN}Output:\n{stdout}{NC}")
         if stderr:
-            print(f"\n{RED}Error Output:\n{stderr.decode()}{NC}")
+            print(f"\n{RED}Error Output:\n{stderr}{NC}")
         return False
 
 def run_command_with_spinner(cmd_list, description):
@@ -96,7 +96,9 @@ def run_command_with_spinner(cmd_list, description):
         cmd_list,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        shell=shell_needed
+        shell=shell_needed,
+        encoding='utf-8',  # Fix Windows encoding issue
+        errors='replace'  # Replace problematic characters instead of crashing
     )
     return show_loading(description, process)
 
