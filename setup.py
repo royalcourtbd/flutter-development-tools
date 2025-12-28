@@ -124,20 +124,28 @@ def setup_windows(system_info):
                 shutil.copy2(current_dir / script_file, scripts_dir / script_file)
                 print(f"{GREEN}✓ Copied {script_file}{NC}")
 
+        # Copy .env file if it exists in current directory
+        env_file_current = current_dir / '.env'
+        env_file_target = scripts_dir / '.env'
+        
+        if env_file_current.exists():
+            shutil.copy2(env_file_current, env_file_target)
+            print(f"{GREEN}✓ Copied .env with your API keys{NC}")
+        
         # Copy .env.example if it exists
         env_example = current_dir / '.env.example'
         if env_example.exists():
             shutil.copy2(env_example, scripts_dir / '.env.example')
             print(f"{GREEN}✓ Copied .env.example{NC}")
 
-            # Check if .env exists, if not create from example
-            env_file = scripts_dir / '.env'
-            if not env_file.exists():
-                shutil.copy2(env_example, env_file)
+            # If .env was not copied and doesn't exist, create from example
+            if not env_file_current.exists() and not env_file_target.exists():
+                shutil.copy2(env_example, env_file_target)
                 print(f"{YELLOW}✓ Created .env file from .env.example{NC}")
-                print(f"{YELLOW}→ Please edit {env_file} and add your API keys{NC}")
-            else:
-                print(f"{GREEN}✓ .env file already exists (keeping your configuration){NC}")
+                print(f"{YELLOW}→ Please edit {env_file_target} and add your API keys{NC}")
+        elif not env_file_current.exists():
+            print(f"{YELLOW}⚠️  No .env or .env.example file found{NC}")
+            print(f"{YELLOW}→ Please create {env_file_target} and add your API keys{NC}")
     
     # Create batch wrappers for all scripts
     for script_file, command_name in scripts_to_copy:
@@ -188,20 +196,28 @@ def setup_unix(system_info):
                 shutil.copy2(current_dir / script_file, scripts_dir / script_file)
                 print(f"{GREEN}✓ Copied {script_file}{NC}")
 
+        # Copy .env file if it exists in current directory
+        env_file_current = current_dir / '.env'
+        env_file_target = scripts_dir / '.env'
+        
+        if env_file_current.exists():
+            shutil.copy2(env_file_current, env_file_target)
+            print(f"{GREEN}✓ Copied .env with your API keys{NC}")
+        
         # Copy .env.example if it exists
         env_example = current_dir / '.env.example'
         if env_example.exists():
             shutil.copy2(env_example, scripts_dir / '.env.example')
             print(f"{GREEN}✓ Copied .env.example{NC}")
 
-            # Check if .env exists, if not create from example
-            env_file = scripts_dir / '.env'
-            if not env_file.exists():
-                shutil.copy2(env_example, env_file)
+            # If .env was not copied and doesn't exist, create from example
+            if not env_file_current.exists() and not env_file_target.exists():
+                shutil.copy2(env_example, env_file_target)
                 print(f"{YELLOW}✓ Created .env file from .env.example{NC}")
-                print(f"{YELLOW}→ Please edit {env_file} and add your API keys{NC}")
-            else:
-                print(f"{GREEN}✓ .env file already exists (keeping your configuration){NC}")
+                print(f"{YELLOW}→ Please edit {env_file_target} and add your API keys{NC}")
+        elif not env_file_current.exists():
+            print(f"{YELLOW}⚠️  No .env or .env.example file found{NC}")
+            print(f"{YELLOW}→ Please create {env_file_target} and add your API keys{NC}")
     
     # Make all scripts executable
     for script_file, _ in scripts_to_copy:
