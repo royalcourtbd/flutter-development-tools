@@ -392,50 +392,114 @@ def get_version_from_pubspec():
         print(f"Please run this command from the root of a Flutter project.")
         return None
 
-def create_and_push_tag():
-    """Create git tag from pubspec version and push to remote"""
-    print(f"{YELLOW}Creating and pushing git tag...{NC}\n")
-    
-    # Get version from pubspec.yaml
-    version = get_version_from_pubspec()
-    if not version:
-        return False
-    
-    tag_name = f"v{version}"
-    
-    print(f"{BLUE}Version found: {version}{NC}")
-    print(f"{BLUE}Tag name: {tag_name}{NC}\n")
-    
-    # Check if tag already exists
+def parse_version(version_str):
+    """Parse version string (e.g., 'v1.2.3' or '1.2.3') into tuple (1, 2, 3)"""
+    # Remove 'v' prefix if present
+    version_str = version_str.lstrip('v')
     try:
-        result = subprocess.run(["git", "tag", "-l", tag_name],
+        parts = version_str.split('.')
+        return tuple(int(p) for p in parts[:3])  # Return only major.minor.patch
+    except:
+        return None
+
+def get_all_tags():
+    """Get all tags from both local and remote repositories"""
+    all_tags = set()
+    
+    # Get local tags
+    try:
+        result = subprocess.run(["git", "tag", "-l"],
                               capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.stdout.strip():
-            print(f"{YELLOW}Warning: Tag {tag_name} already exists locally.{NC}")
-            user_input = input(f"Do you want to delete and recreate it? (y/N): ")
-            if user_input.lower() != 'y':
-                print(f"{YELLOW}Operation cancelled.{NC}")
-                return False
-            # Delete existing tag
-            subprocess.run(["git", "tag", "-d", tag_name])
-            print(f"{GREEN}Deleted existing local tag: {tag_name}{NC}")
+            local_tags = result.stdout.strip().split('\n')
+            all_tags.update(local_tags)
     except Exception as e:
-        print(f"{RED}Error checking existing tags: {e}{NC}")
+        print(f"{YELLOW}Warning: Could not get local tags: {e}{NC}")
+    
+    # Get remote tags
+    try:
+        result = subprocess.run(["git", "ls-remote", "--tags", "origin"],
+                              capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.stdout.strip():
+            for line in result.stdout.strip().split('\n'):
+                # Extract tag name from "hash refs/tags/v1.0.0"
+                if 'refs/tags/' in line:
+                    tag = line.split('refs/tags/')[-1]
+                    # Skip ^{} references
+                    if not tag.endswith('^{}'):
+                        all_tags.add(tag)
+    except Exception as e:
+        print(f"{YELLOW}Warning: Could not get remote tags: {e}{NC}")
+    
+    return sorted(all_tags)
+
+def increment_version(version_tuple):
+    """Increment patch version: (1, 2, 3) -> (1, 2, 4)"""
+    major, minor, patch = version_tuple
+    return (major, minor, patch + 1)
+
+def create_and_push_tag():
+    """Create git tag by auto-incrementing the latest existing tag and push to remote"""
+    print(f"{YELLOW}Creating and pushing git tag...{NC}\n")
+    
+    # Get all existing tags
+    print(f"{BLUE}Checking existing tags...{NC}")
+    all_tags = get_all_tags()
+    
+    if all_tags:
+        print(f"{GREEN}Found {len(all_tags)} existing tag(s):{NC}")
+        for tag in all_tags[-5:]:  # Show last 5 tags
+            print(f"  • {tag}")
+        if len(all_tags) > 5:
+            print(f"  ... and {len(all_tags) - 5} more")
+        print()
+    
+    # Find the latest version
+    latest_version = None
+    latest_tag = None
+    
+    for tag in all_tags:
+        parsed = parse_version(tag)
+        if parsed:
+            if latest_version is None or parsed > latest_version:
+                latest_version = parsed
+                latest_tag = tag
+    
+    # Determine new version
+    if latest_version:
+        new_version = increment_version(latest_version)
+        new_tag = f"v{new_version[0]}.{new_version[1]}.{new_version[2]}"
+        print(f"{BLUE}Latest tag: {latest_tag} → New tag: {new_tag}{NC}\n")
+    else:
+        # No existing tags, use version from pubspec
+        version = get_version_from_pubspec()
+        if not version:
+            print(f"{YELLOW}No existing tags found and cannot read pubspec version.{NC}")
+            print(f"{YELLOW}Using default: v1.0.0{NC}\n")
+            new_tag = "v1.0.0"
+        else:
+            new_tag = f"v{version}"
+            print(f"{BLUE}No existing tags found. Creating first tag: {new_tag}{NC}\n")
+    
+    # Confirm with user
+    user_input = input(f"Create and push tag {GREEN}{new_tag}{NC}? (Y/n): ")
+    if user_input.lower() == 'n':
+        print(f"{YELLOW}Operation cancelled.{NC}")
         return False
     
     # Create git tag
-    success = run_flutter_command(["git", "tag", tag_name], f"Creating tag {tag_name}...                             ")
+    success = run_flutter_command(["git", "tag", new_tag], f"Creating tag {new_tag}...                             ")
     if not success:
         print(f"{RED}Failed to create git tag.{NC}")
         return False
     
     # Push tag to remote
-    success = run_flutter_command(["git", "push", "-u", "origin", tag_name], f"Pushing tag to remote...                            ")
+    success = run_flutter_command(["git", "push", "-u", "origin", new_tag], f"Pushing tag to remote...                            ")
     if not success:
         print(f"{RED}Failed to push tag to remote.{NC}")
         return False
     
-    print(f"\n{GREEN}✓ Git tag {tag_name} created and pushed successfully!{NC}")
+    print(f"\n{GREEN}✓ Git tag {new_tag} created and pushed successfully!{NC}")
     return True
 
 def uninstall_app():
