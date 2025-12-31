@@ -99,6 +99,18 @@ def display_apk_size():
     else:
         print(f"{RED}APK file not found in {apk_dir}{NC}")
 
+def display_aab_size():
+    """Function to display AAB size"""
+    aab_dir = Path("build/app/outputs/bundle/release")
+    aab_files = list(aab_dir.glob("*.aab")) if aab_dir.exists() else []
+    if aab_files:
+        for aab_path in aab_files:
+            size_bytes = aab_path.stat().st_size
+            size_mb = round(size_bytes / 1048576, 2)
+            print(f"{BLUE}AAB: {aab_path.name} | Size: {size_mb} MB{NC}")
+    else:
+        print(f"{RED}AAB file not found in {aab_dir}{NC}")
+
 def run_flutter_command(cmd_list, description):
     """
     Runs a flutter/dart command with a loading spinner.
@@ -126,22 +138,25 @@ def build_apk():
 
     # Clean the project
     run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
-    
+
     # Get dependencies
     run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
-    
+
+    # Generate localizations
+    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
+
     # Generate build files
     run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
-    
+
     # Build the APK
     run_flutter_command([
         "flutter", "build", "apk", "--release", "--obfuscate", "--target-platform", "android-arm64", "--split-debug-info=./"
     ], "Building APK...                                      ")
     print(f"\n{GREEN}✓ APK built successfully!{NC}")
-    
+
     # Display APK size
     display_apk_size()
-    
+
     # Open the directory containing the APK
     open_directory("build/app/outputs/flutter-apk/")
 
@@ -153,6 +168,8 @@ def build_apk_split_per_abi():
     run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
     # Get dependencies
     run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
+    # Generate localizations
+    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
     # Generate build files
     run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
     # Build APK with split-per-abi
@@ -173,11 +190,15 @@ def build_aab():
     run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
     # Get dependencies
     run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
+    # Generate localizations
+    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
     # Generate build files
     run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
     # Build AAB
     run_flutter_command(["flutter", "build", "appbundle", "--release", "--obfuscate", "--split-debug-info=./"], "Building AAB...                                      ")
     print(f"\n{GREEN}✓ AAB built successfully!{NC}")
+    # Display AAB size
+    display_aab_size()
     # Open the directory containing the AAB
     open_directory("build/app/outputs/bundle/release/")
 
