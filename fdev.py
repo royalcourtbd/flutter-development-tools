@@ -5,7 +5,9 @@ import time
 import signal
 import subprocess
 import re
+import shutil
 from pathlib import Path
+from datetime import datetime
 
 # Import common utilities
 from common_utils import (
@@ -87,6 +89,118 @@ def get_package_name():
     print(f"{YELLOW}Searched in: android/app/build.gradle and android/app/build.gradle.kts{NC}")
     return None
 
+def get_app_label_from_manifest():
+    """
+    Extract app label from AndroidManifest.xml
+    Returns the app label or None if not found
+    """
+    manifest_path = Path("android/app/src/main/AndroidManifest.xml")
+
+    if not manifest_path.exists():
+        print(f"{YELLOW}Warning: AndroidManifest.xml not found at {manifest_path}{NC}")
+        return None
+
+    try:
+        with open(manifest_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+            # Pattern to match android:label="App Name" or android:label="@string/app_name"
+            match = re.search(r'android:label="([^"]+)"', content)
+            if match:
+                label = match.group(1)
+                # If it's a string resource reference, try to get actual value
+                if label.startswith('@string/'):
+                    # For now, return a fallback. Could be enhanced to read strings.xml
+                    return None
+                # Decode HTML entities like &amp; to &
+                label = label.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                return label
+            else:
+                print(f"{YELLOW}Warning: Could not find android:label in AndroidManifest.xml{NC}")
+                return None
+    except Exception as e:
+        print(f"{YELLOW}Warning: Could not read AndroidManifest.xml: {e}{NC}")
+        return None
+
+def sanitize_filename(name):
+    """
+    Sanitize app name for use in filename (cross-platform compatible)
+    Removes/replaces characters not allowed in Windows/macOS/Linux filenames
+    """
+    # Replace & with 'and'
+    name = name.replace('&', 'and')
+    # Remove Windows forbidden characters: < > : " / \ | ? *
+    # and other special characters
+    name = re.sub(r'[<>:"/\\|?*]', '', name)
+    # Remove any remaining special characters except alphanumeric, spaces, hyphens, underscores
+    name = re.sub(r'[^\w\s-]', '', name)
+    # Replace multiple spaces/hyphens with single underscore
+    name = re.sub(r'[-\s]+', '_', name)
+    # Remove leading/trailing underscores
+    name = name.strip('_')
+    return name
+
+def get_formatted_date():
+    """
+    Get current date formatted as 'DD_MMM' (e.g., '07_Jan')
+    """
+    return datetime.now().strftime('%d_%b')
+
+def rename_build_files(output_dir, file_extension, app_label=None):
+    """
+    Rename APK/AAB files with app label and date
+    Parameters:
+        output_dir: Directory containing the build files (Path object)
+        file_extension: File extension to search for ('apk' or 'aab')
+        app_label: Optional app label (if None, will extract from AndroidManifest.xml)
+    """
+    if not output_dir.exists():
+        print(f"{YELLOW}Warning: Output directory {output_dir} does not exist{NC}")
+        return
+
+    # Get app label from AndroidManifest.xml if not provided
+    if app_label is None:
+        app_label = get_app_label_from_manifest()
+
+    if not app_label:
+        print(f"{YELLOW}Warning: Could not get app label, files will not be renamed{NC}")
+        return
+
+    # Sanitize app name for filename
+    sanitized_name = sanitize_filename(app_label)
+
+    # Get formatted date
+    date_str = get_formatted_date()
+
+    # Find all files with the specified extension
+    build_files = list(output_dir.glob(f"*.{file_extension}"))
+
+    if not build_files:
+        print(f"{YELLOW}Warning: No {file_extension.upper()} files found in {output_dir}{NC}")
+        return
+
+    print(f"\n{BLUE}Renaming {file_extension.upper()} files...{NC}")
+
+    for file_path in build_files:
+        # Check if file contains architecture info (e.g., arm64-v8a)
+        arch_match = re.search(r'(arm64-v8a|armeabi-v7a|x86|x86_64)', file_path.name)
+
+        if arch_match:
+            # Include architecture in filename
+            arch = arch_match.group(1)
+            new_name = f"{sanitized_name}_{arch}_{date_str}.{file_extension}"
+        else:
+            # No architecture info
+            new_name = f"{sanitized_name}_{date_str}.{file_extension}"
+
+        new_path = output_dir / new_name
+
+        # Rename the file
+        try:
+            shutil.move(str(file_path), str(new_path))
+            print(f"{GREEN}  ✓ Renamed: {file_path.name} → {new_name}{NC}")
+        except Exception as e:
+            print(f"{RED}  ✗ Failed to rename {file_path.name}: {e}{NC}")
+
 def display_apk_size():
     """Function to display APK size"""
     apk_dir = Path("build/app/outputs/flutter-apk")
@@ -154,6 +268,10 @@ def build_apk():
     ], "Building APK...                                      ")
     print(f"\n{GREEN}✓ APK built successfully!{NC}")
 
+    # Rename APK files with app label and date
+    apk_dir = Path("build/app/outputs/flutter-apk")
+    rename_build_files(apk_dir, "apk")
+
     # Display APK size
     display_apk_size()
 
@@ -177,6 +295,11 @@ def build_apk_split_per_abi():
         "flutter", "build", "apk", "--release", "--split-per-abi", "--obfuscate", "--split-debug-info=./"
     ], "Building APK (split-per-abi)...                      ")
     print(f"\n{GREEN}✓ APK (split-per-abi) built successfully!{NC}")
+
+    # Rename APK files with app label and date
+    apk_dir = Path("build/app/outputs/flutter-apk")
+    rename_build_files(apk_dir, "apk")
+
     # Display APK size
     display_apk_size()
     # Open the directory containing the APK
@@ -197,6 +320,11 @@ def build_aab():
     # Build AAB
     run_flutter_command(["flutter", "build", "appbundle", "--release", "--obfuscate", "--split-debug-info=./"], "Building AAB...                                      ")
     print(f"\n{GREEN}✓ AAB built successfully!{NC}")
+
+    # Rename AAB files with app label and date
+    aab_dir = Path("build/app/outputs/bundle/release")
+    rename_build_files(aab_dir, "aab")
+
     # Display AAB size
     display_aab_size()
     # Open the directory containing the AAB
@@ -266,6 +394,11 @@ def release_run():
     run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
     run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
     run_flutter_command(["flutter", "build", "apk", "--release", "--obfuscate", "--target-platform", "android-arm64", "--split-debug-info=./"], "Building APK...                                      ")
+
+    # Rename APK files with app label and date
+    apk_dir = Path("build/app/outputs/flutter-apk")
+    rename_build_files(apk_dir, "apk")
+
     display_apk_size()
     install_result = install_apk()
     if install_result:
