@@ -571,14 +571,105 @@ def increment_version(version_tuple):
     major, minor, patch = version_tuple
     return (major, minor, patch + 1)
 
+def get_build_number_from_pubspec():
+    """Get the build number from pubspec.yaml (e.g., from '1.0.0+5' returns 5)"""
+    if os.path.isfile("pubspec.yaml"):
+        with open("pubspec.yaml", 'r', encoding='utf-8') as file:
+            try:
+                content = file.read()
+                # Find version line with build number
+                version_match = re.search(r'^version:\s*["\']?([\d\.]+)\+(\d+)["\']?', content, re.MULTILINE)
+                if version_match:
+                    build_number = int(version_match.group(2))
+                    return build_number
+                return None
+            except Exception:
+                return None
+    return None
+
+def update_pubspec_version(new_version):
+    """Update version in pubspec.yaml file, preserving and incrementing build number
+    Returns: (success, build_number) tuple
+    """
+    if not os.path.isfile("pubspec.yaml"):
+        print(f"{RED}Error: pubspec.yaml not found in the current directory.{NC}")
+        return (False, None)
+
+    try:
+        with open("pubspec.yaml", 'r', encoding='utf-8') as file:
+            content = file.read()
+
+        # Get current build number
+        current_build = get_build_number_from_pubspec()
+
+        # Increment build number or start from 1
+        new_build = (current_build + 1) if current_build is not None else 1
+
+        # Create new version string with build number
+        new_version_with_build = f"{new_version}+{new_build}"
+
+        # Find the version line and replace it
+        # Match version with or without build number (e.g., "1.0.0" or "1.0.0+1")
+        new_content = re.sub(
+            r'^version:\s*["\']?[\d\.]+(\+\d+)?["\']?',
+            f'version: {new_version_with_build}',
+            content,
+            flags=re.MULTILINE
+        )
+
+        # Write back to file
+        with open("pubspec.yaml", 'w', encoding='utf-8') as file:
+            file.write(new_content)
+
+        print(f"{GREEN}  Build number: {current_build or 0} → {new_build}{NC}")
+        return (True, new_build)
+    except Exception as e:
+        print(f"{RED}Error updating pubspec.yaml: {e}{NC}")
+        return (False, None)
+
+def commit_version_change(version, build_number=None):
+    """Commit the pubspec.yaml version change"""
+    # Add pubspec.yaml to staging
+    result = subprocess.run(
+        ["git", "add", "pubspec.yaml"],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace'
+    )
+
+    if result.returncode != 0:
+        print(f"{RED}Failed to stage pubspec.yaml{NC}")
+        return False
+
+    # Commit with version bump message
+    if build_number:
+        commit_message = f"chore: bump version to {version}+{build_number}"
+    else:
+        commit_message = f"chore: bump version to {version}"
+
+    result = subprocess.run(
+        ["git", "commit", "-m", commit_message],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace'
+    )
+
+    if result.returncode != 0:
+        print(f"{RED}Failed to commit version change{NC}")
+        return False
+
+    return True
+
 def create_and_push_tag():
     """Create git tag by auto-incrementing the latest existing tag and push to remote"""
     print(f"{YELLOW}Creating and pushing git tag...{NC}\n")
-    
+
     # Get all existing tags
     print(f"{BLUE}Checking existing tags...{NC}")
     all_tags = get_all_tags()
-    
+
     if all_tags:
         print(f"{GREEN}Found {len(all_tags)} existing tag(s):{NC}")
         for tag in all_tags[-5:]:  # Show last 5 tags
@@ -586,22 +677,23 @@ def create_and_push_tag():
         if len(all_tags) > 5:
             print(f"  ... and {len(all_tags) - 5} more")
         print()
-    
+
     # Find the latest version
     latest_version = None
     latest_tag = None
-    
+
     for tag in all_tags:
         parsed = parse_version(tag)
         if parsed:
             if latest_version is None or parsed > latest_version:
                 latest_version = parsed
                 latest_tag = tag
-    
+
     # Determine new version
     if latest_version:
         new_version = increment_version(latest_version)
         new_tag = f"v{new_version[0]}.{new_version[1]}.{new_version[2]}"
+        new_version_str = f"{new_version[0]}.{new_version[1]}.{new_version[2]}"
         print(f"{BLUE}Latest tag: {latest_tag} → New tag: {new_tag}{NC}\n")
     else:
         # No existing tags, use version from pubspec
@@ -610,29 +702,53 @@ def create_and_push_tag():
             print(f"{YELLOW}No existing tags found and cannot read pubspec version.{NC}")
             print(f"{YELLOW}Using default: v1.0.0{NC}\n")
             new_tag = "v1.0.0"
+            new_version_str = "1.0.0"
         else:
             new_tag = f"v{version}"
+            new_version_str = version
             print(f"{BLUE}No existing tags found. Creating first tag: {new_tag}{NC}\n")
-    
+
     # Confirm with user
-    user_input = input(f"Create and push tag {GREEN}{new_tag}{NC}? (Y/n): ")
+    user_input = input(f"Update pubspec.yaml, commit and create tag {GREEN}{new_tag}{NC}? (Y/n): ")
     if user_input.lower() == 'n':
         print(f"{YELLOW}Operation cancelled.{NC}")
         return False
-    
-    # Create git tag
+
+    # Step 1: Update pubspec.yaml version
+    print(f"{BLUE}Updating pubspec.yaml version to {new_version_str}...{NC}")
+    success, build_number = update_pubspec_version(new_version_str)
+    if not success:
+        print(f"{RED}Failed to update pubspec.yaml{NC}")
+        return False
+    print(f"{GREEN}✓ pubspec.yaml updated to {new_version_str}+{build_number}{NC}")
+
+    # Step 2: Commit the version change
+    print(f"{BLUE}Committing version change...{NC}")
+    if not commit_version_change(new_version_str, build_number):
+        print(f"{RED}Failed to commit version change{NC}")
+        return False
+    print(f"{GREEN}✓ Version change committed{NC}")
+
+    # Step 3: Create git tag
     success = run_flutter_command(["git", "tag", new_tag], f"Creating tag {new_tag}...                             ")
     if not success:
         print(f"{RED}Failed to create git tag.{NC}")
         return False
-    
-    # Push tag to remote
+
+    # Step 4: Push commit to remote
+    print(f"{BLUE}Pushing commit to remote...{NC}")
+    success = run_flutter_command(["git", "push"], f"Pushing commit...                                   ")
+    if not success:
+        print(f"{RED}Failed to push commit to remote.{NC}")
+        return False
+
+    # Step 5: Push tag to remote
     success = run_flutter_command(["git", "push", "-u", "origin", new_tag], f"Pushing tag to remote...                            ")
     if not success:
         print(f"{RED}Failed to push tag to remote.{NC}")
         return False
-    
-    print(f"\n{GREEN}✓ Git tag {new_tag} created and pushed successfully!{NC}")
+
+    print(f"\n{GREEN}✓ Version {new_version_str}+{build_number} updated, committed, and git tag {new_tag} created and pushed successfully!{NC}")
     return True
 
 def uninstall_app():
