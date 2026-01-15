@@ -9,6 +9,10 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 
+# ================================================
+# IMPORTS AND GLOBAL VARIABLES
+# ================================================
+
 # Import common utilities
 from common_utils import (
     RED, GREEN, YELLOW, BLUE, NC, MAGENTA, CHECKMARK, CROSS,
@@ -20,9 +24,9 @@ from common_utils import (
 # Global variable to store selected Android device
 SELECTED_DEVICE = None
 
-# ============================================================================
+# ================================================
 # DEVICE SELECTION FUNCTIONS
-# ============================================================================
+# ================================================
 
 def get_all_connected_devices():
     """
@@ -145,9 +149,9 @@ def ensure_device_connected(error_message=None, additional_help=None):
 
     return True
 
-# ============================================================================
-# END DEVICE SELECTION FUNCTIONS
-# ============================================================================
+# ================================================
+# LOADING AND UI FUNCTIONS
+# ================================================
 
 def show_loading(description, process):
     """
@@ -180,6 +184,10 @@ def show_loading(description, process):
         if stderr:
             print(f"\n{RED}Error Output:\n{stderr}{NC}")
         return False
+
+# ================================================
+# PACKAGE AND APP INFORMATION FUNCTIONS
+# ================================================
 
 def get_package_name():
     """
@@ -253,6 +261,10 @@ def get_app_label_from_manifest():
         print(f"{YELLOW}Warning: Could not read AndroidManifest.xml: {e}{NC}")
         return None
 
+# ================================================
+# FILENAME AND DATE UTILITIES
+# ================================================
+
 def sanitize_filename(name):
     """
     Sanitize app name for use in filename (cross-platform compatible)
@@ -276,6 +288,10 @@ def get_formatted_date():
     Get current date formatted as 'DD_MMM' (e.g., '07_Jan')
     """
     return datetime.now().strftime('%d_%b')
+
+# ================================================
+# BUILD FILE MANAGEMENT FUNCTIONS
+# ================================================
 
 def rename_build_files(output_dir, file_extension, app_label=None):
     """
@@ -359,6 +375,10 @@ def display_build_size(file_type, directory):
     else:
         print(f"{RED}{file_type.upper()} file not found in {build_dir}{NC}")
 
+# ================================================
+# COMMON BUILD PROCESS
+# ================================================
+
 def common_build_process(
     build_name,
     build_command,
@@ -420,6 +440,10 @@ def common_build_process(
         open_directory(str(output_dir))
         return True
 
+# ================================================
+# FLUTTER COMMAND RUNNER
+# ================================================
+
 def run_flutter_command(cmd_list, description):
     """
     Runs a flutter/dart command with a loading spinner.
@@ -439,6 +463,10 @@ def run_flutter_command(cmd_list, description):
         errors='replace'  # Replace problematic characters instead of crashing
     )
     return show_loading(description, process)
+
+# ================================================
+# BUILD COMMANDS (APK/AAB)
+# ================================================
 
 @timer_decorator
 def build_apk():
@@ -484,6 +512,10 @@ def build_aab():
         file_extension="aab",
         install_after=False
     )
+
+# ================================================
+# GENERATION AND SETUP COMMANDS
+# ================================================
 
 def generate_lang():
     """Generate localization files"""
@@ -539,6 +571,10 @@ def cleanup_project():
     #Upgrade with major version
     run_flutter_command(["flutter", "pub", "upgrade", "--major-versions"], "Upgrading major versions...                            ")
     print(f"\n{GREEN}✓ Project cleaned successfully!{NC}")
+
+# ================================================
+# RELEASE RUN AND INSTALLATION
+# ================================================
 
 @timer_decorator
 def release_run():
@@ -620,6 +656,10 @@ def install_apk():
 
     return success
 
+# ================================================
+# IOS PODS UPDATE
+# ================================================
+
 @timer_decorator
 def update_pods():
     """Update iOS pods"""
@@ -650,9 +690,9 @@ def update_pods():
     os.chdir(current_dir)
     print(f"\n{GREEN}✓ iOS pods updated successfully!{NC}")
 
-# ============================================================================
+# ================================================
 # GIT TAG FUNCTIONS
-# ============================================================================
+# ================================================
 
 def get_version_from_pubspec():
     """Get the version from pubspec.yaml using regex"""
@@ -904,6 +944,10 @@ def create_and_push_tag():
     print(f"\n{GREEN}✓ Version {new_version_str}+{build_number} updated, committed, and git tag {new_tag} created and pushed successfully!{NC}")
     return True
 
+# ================================================
+# APP MANAGEMENT FUNCTIONS
+# ================================================
+
 def get_current_foreground_app():
     """
     Get the package name of currently running foreground app
@@ -1083,8 +1127,12 @@ def clear_app_data():
             return uninstall_app()
         
         return False
-    
+
     return False
+
+# ================================================
+# UNINSTALL FUNCTION
+# ================================================
 
 def uninstall_app():
     """Uninstall the app from connected device (Android/iOS)"""
@@ -1186,6 +1234,10 @@ def uninstall_app():
         print(f"{RED}No device/simulator detected!{NC}")
         print(f"{YELLOW}Please connect an Android device or start an iOS simulator{NC}")
         return False
+
+# ================================================
+# SMART COMMIT FUNCTION
+# ================================================
 
 @timer_decorator
 def smart_commit():
@@ -1315,6 +1367,10 @@ def smart_commit():
     except subprocess.CalledProcessError as e:
         print(f"{RED}Error creating commit: {e}{NC}")
         return False
+
+# ================================================
+# WIRELESS ADB FUNCTIONS
+# ================================================
 
 def get_usb_devices():
     """
@@ -1456,6 +1512,10 @@ def setup_wireless_adb():
         print(f"{YELLOW}Output: {result.stdout}{NC}")
         return False
 
+# ================================================
+# SCRCPY MIRROR FUNCTION
+# ================================================
+
 def launch_scrcpy():
     """
     Launch scrcpy with optimized settings
@@ -1506,6 +1566,10 @@ def launch_scrcpy():
         print(f"{RED}Error launching scrcpy: {e}{NC}")
         return False
 
+# ================================================
+# PAGE CREATION FUNCTION
+# ================================================
+
 def create_page(page_name):
     """Create page structure"""
     print(f"{YELLOW}Creating page...{NC}\n")
@@ -1524,6 +1588,10 @@ def create_page(page_name):
         print(f"{RED}Error: create_page.py not found.{NC}")
         print("Make sure create_page.py exists at ~/scripts/flutter-tools/")
         sys.exit(1)
+
+# ================================================
+# USAGE AND HELP
+# ================================================
 
 def show_usage():
     """Show usage information"""
@@ -1562,6 +1630,10 @@ def show_usage():
     print(f"\n{BLUE}Note:{NC}")
     print(f"  {YELLOW}Multiple devices detected?{NC} Tool will prompt you to select one.")
     sys.exit(1)
+
+# ================================================
+# MAIN FUNCTION AND ENTRY POINT
+# ================================================
 
 def main():
     """Main function"""
