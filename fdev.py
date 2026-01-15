@@ -17,6 +17,112 @@ from common_utils import (
     open_directory
 )
 
+# Global variable to store selected Android device
+SELECTED_DEVICE = None
+
+# ============================================================================
+# DEVICE SELECTION FUNCTIONS
+# ============================================================================
+
+def get_all_connected_devices():
+    """
+    Get all connected Android devices/emulators
+    Returns: List of device serials, or empty list if none found
+    """
+    try:
+        result = subprocess.run(
+            ["adb", "devices"],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+
+        if result.returncode == 0:
+            devices = []
+            lines = result.stdout.strip().split('\n')
+            # Skip the first line ("List of devices attached")
+            for line in lines[1:]:
+                if line.strip() and '\tdevice' in line:
+                    # Extract device serial (first part before tab)
+                    serial = line.split('\t')[0].strip()
+                    devices.append(serial)
+            return devices
+        return []
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+
+def select_device_if_multiple():
+    """
+    Check for connected devices and prompt user to select if multiple found.
+    Sets the global SELECTED_DEVICE variable.
+    Returns: True if device selected/available, False if no devices
+    """
+    global SELECTED_DEVICE
+
+    devices = get_all_connected_devices()
+
+    if not devices:
+        return False
+
+    if len(devices) == 1:
+        # Only one device, auto-select it
+        SELECTED_DEVICE = devices[0]
+        return True
+
+    # Multiple devices found, ask user to select
+    print(f"\n{YELLOW}Multiple devices detected:{NC}")
+    for i, device in enumerate(devices, 1):
+        # Check if it's a network device
+        if ':' in device:
+            print(f"  {i}. {device} {BLUE}(wireless){NC}")
+        else:
+            print(f"  {i}. {device} {GREEN}(USB){NC}")
+
+    print()
+    while True:
+        try:
+            choice = input(f"Select device (1-{len(devices)}): ").strip()
+            index = int(choice) - 1
+            if 0 <= index < len(devices):
+                SELECTED_DEVICE = devices[index]
+                print(f"{GREEN}✓ Selected: {SELECTED_DEVICE}{NC}\n")
+                return True
+            else:
+                print(f"{RED}Invalid choice. Please enter a number between 1 and {len(devices)}{NC}")
+        except ValueError:
+            print(f"{RED}Invalid input. Please enter a number{NC}")
+        except KeyboardInterrupt:
+            print(f"\n{YELLOW}Selection cancelled{NC}")
+            return False
+
+def build_adb_cmd(cmd_list, require_device=True):
+    """
+    Build ADB command with device selection if needed.
+    Parameters:
+        cmd_list: List of command parts (e.g., ["shell", "pm", "clear", "package"])
+        require_device: If True, adds -s flag when SELECTED_DEVICE is set
+    Returns: Complete command list ready for subprocess
+    """
+    global SELECTED_DEVICE
+
+    # Start with "adb"
+    adb_cmd = ["adb"]
+
+    # Add device selection if needed
+    if require_device and SELECTED_DEVICE:
+        adb_cmd.extend(["-s", SELECTED_DEVICE])
+
+    # Add the rest of the command
+    adb_cmd.extend(cmd_list)
+
+    return adb_cmd
+
+# ============================================================================
+# END DEVICE SELECTION FUNCTIONS
+# ============================================================================
+
 def show_loading(description, process):
     """
     Displays a loading spinner with a custom message while a process is running
@@ -413,6 +519,11 @@ def install_apk():
     Handles signature mismatch by uninstalling existing app first.
     Automatically launches the app after successful installation.
     """
+    # Select device if multiple connected
+    if not select_device_if_multiple():
+        print(f"{RED}Error: No Android device connected!{NC}")
+        return False
+
     apk_dir = Path("build/app/outputs/flutter-apk")
     apk_files = [str(f) for f in apk_dir.glob("*.apk")] if apk_dir.exists() else []
     if not apk_files:
@@ -431,7 +542,7 @@ def install_apk():
     print(f"{YELLOW}Installing {target_apk}...{NC}")
 
     # First try normal install
-    success = run_flutter_command(["adb", "install", "-r", target_apk], "Installing on device...                              ")
+    success = run_flutter_command(build_adb_cmd(["install", "-r", target_apk]), "Installing on device...                              ")
 
     if not success:
         # Get package name dynamically
@@ -444,9 +555,9 @@ def install_apk():
         print(f"{BLUE}Package name: {package_name}{NC}")
 
         # Try to uninstall existing app first using dynamic package name
-        run_flutter_command(["adb", "uninstall", package_name], "Uninstalling existing app...                        ")
+        run_flutter_command(build_adb_cmd(["uninstall", package_name]), "Uninstalling existing app...                        ")
         # Then try to install again
-        success = run_flutter_command(["adb", "install", target_apk], "Reinstalling on device...                           ")
+        success = run_flutter_command(build_adb_cmd(["install", target_apk]), "Reinstalling on device...                           ")
 
     # Launch app after successful installation
     if success:
@@ -455,7 +566,7 @@ def install_apk():
             print(f"{YELLOW}Launching app...{NC}")
             # Launch the app using monkey command (works on all devices)
             launch_success = run_flutter_command(
-                ["adb", "shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"],
+                build_adb_cmd(["shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"]),
                 "Starting app on device...                           "
             )
             if launch_success:
@@ -812,27 +923,24 @@ def get_current_foreground_app():
     
     # Check for Android device
     try:
-        android_check = subprocess.run(
-            ["adb", "devices"],
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            timeout=5
-        )
-        android_connected = android_check.returncode == 0 and len(android_check.stdout.strip().split('\n')) > 1
-        
+        devices = get_all_connected_devices()
+        android_connected = len(devices) > 0
+
         if android_connected:
+            # Select device if multiple connected
+            if not select_device_if_multiple():
+                return (None, None)
+
             # Get current foreground app on Android
             result = subprocess.run(
-                ["adb", "shell", "dumpsys", "window", "windows"],
+                build_adb_cmd(["shell", "dumpsys", "window", "windows"]),
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
                 timeout=5
             )
-            
+
             if result.returncode == 0:
                 # Parse output to find current focused app
                 for line in result.stdout.split('\n'):
@@ -842,10 +950,10 @@ def get_current_foreground_app():
                         if match:
                             package_name = match.group(1)
                             return ("android", package_name)
-                
+
                 # Fallback: Try using dumpsys activity
                 result2 = subprocess.run(
-                    ["adb", "shell", "dumpsys", "activity", "activities"],
+                    build_adb_cmd(["shell", "dumpsys", "activity", "activities"]),
                     capture_output=True,
                     text=True,
                     encoding='utf-8',
@@ -905,7 +1013,7 @@ def clear_app_data():
     if platform_type == "android":
         # Clear app data on Android
         success = run_flutter_command(
-            ["adb", "shell", "pm", "clear", package_name],
+            build_adb_cmd(["shell", "pm", "clear", package_name]),
             f"Clearing app data...                                "
         )
         
@@ -955,19 +1063,9 @@ def uninstall_app():
     except (FileNotFoundError, subprocess.TimeoutExpired):
         ios_connected = False
 
-    try:
-        # Check for Android device
-        android_check = subprocess.run(
-            ["adb", "devices"],
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            timeout=5
-        )
-        android_connected = android_check.returncode == 0 and len(android_check.stdout.strip().split('\n')) > 1
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        android_connected = False
+    # Check for Android device using new function
+    devices = get_all_connected_devices()
+    android_connected = len(devices) > 0
 
     # Handle iOS Simulator
     if ios_connected and not android_connected:
@@ -1020,6 +1118,11 @@ def uninstall_app():
     elif android_connected:
         print(f"{BLUE}Android device detected{NC}")
 
+        # Select device if multiple connected
+        if not select_device_if_multiple():
+            print(f"{RED}Error: Device selection failed!{NC}")
+            return False
+
         # Get package name dynamically
         package_name = get_package_name()
         if not package_name:
@@ -1028,7 +1131,7 @@ def uninstall_app():
 
         print(f"{BLUE}Package name: {package_name}{NC}")
         success = run_flutter_command(
-            ["adb", "uninstall", package_name],
+            build_adb_cmd(["uninstall", package_name]),
             "Uninstalling from Android...                        "
         )
 
@@ -1172,54 +1275,78 @@ def smart_commit():
         print(f"{RED}Error creating commit: {e}{NC}")
         return False
 
-def get_connected_device_serial():
+def get_usb_devices():
     """
-    Get the serial number of the connected Android device
-    Returns the device serial or None if no device found
+    Get only USB connected devices (excludes wireless/network devices)
+    Returns: List of USB device serials
     """
-    try:
-        result = subprocess.run(
-            ["adb", "devices"],
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            timeout=5
-        )
+    all_devices = get_all_connected_devices()
+    # Filter out wireless devices (they contain ':' in serial like '192.168.0.131:5555')
+    usb_devices = [d for d in all_devices if ':' not in d]
+    return usb_devices
 
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            # Skip the first line ("List of devices attached")
-            for line in lines[1:]:
-                if line.strip() and '\tdevice' in line:
-                    # Extract device serial (first part before tab)
-                    serial = line.split('\t')[0].strip()
-                    return serial
-        return None
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
+def select_usb_device():
+    """
+    Prompt user to select a USB device if multiple are connected.
+    Sets the global SELECTED_DEVICE variable.
+    Returns: True if device selected/available, False if no devices
+    """
+    global SELECTED_DEVICE
+
+    devices = get_usb_devices()
+
+    if not devices:
+        return False
+
+    if len(devices) == 1:
+        # Only one USB device, auto-select it
+        SELECTED_DEVICE = devices[0]
+        return True
+
+    # Multiple USB devices found, ask user to select
+    print(f"\n{YELLOW}Multiple USB devices detected:{NC}")
+    for i, device in enumerate(devices, 1):
+        print(f"  {i}. {device}")
+
+    print()
+    while True:
+        try:
+            choice = input(f"Select USB device (1-{len(devices)}): ").strip()
+            index = int(choice) - 1
+            if 0 <= index < len(devices):
+                SELECTED_DEVICE = devices[index]
+                print(f"{GREEN}✓ Selected: {SELECTED_DEVICE}{NC}\n")
+                return True
+            else:
+                print(f"{RED}Invalid choice. Please enter a number between 1 and {len(devices)}{NC}")
+        except ValueError:
+            print(f"{RED}Invalid input. Please enter a number{NC}")
+        except KeyboardInterrupt:
+            print(f"\n{YELLOW}Selection cancelled{NC}")
+            return False
 
 def setup_wireless_adb():
     """
     Setup wireless ADB connection
     Guides user through connecting device wirelessly
     """
+    global SELECTED_DEVICE
+
     print(f"{YELLOW}Setting up Wireless ADB...{NC}\n")
 
-    # Check if device is connected via USB
-    serial = get_connected_device_serial()
-    if not serial:
+    # Check if USB device is connected and select it
+    if not select_usb_device():
         print(f"{RED}Error: No device connected via USB!{NC}")
         print(f"{YELLOW}Please connect your device via USB first{NC}")
         return False
 
-    print(f"{GREEN}✓ Device found: {serial}{NC}")
+    print(f"{GREEN}✓ Device found: {SELECTED_DEVICE}{NC}")
     print(f"\n{BLUE}Step 1: Getting device IP address...{NC}")
 
     # Get device IP address
     try:
         result = subprocess.run(
-            ["adb", "shell", "ip", "addr", "show", "wlan0"],
+            build_adb_cmd(["shell", "ip", "addr", "show", "wlan0"]),
             capture_output=True,
             text=True,
             encoding='utf-8',
@@ -1248,7 +1375,7 @@ def setup_wireless_adb():
     print(f"\n{BLUE}Step 2: Setting up ADB on port 5555...{NC}")
     # Enable TCP/IP mode on port 5555
     result = subprocess.run(
-        ["adb", "tcpip", "5555"],
+        build_adb_cmd(["tcpip", "5555"]),
         capture_output=True,
         text=True,
         encoding='utf-8',
@@ -1257,14 +1384,18 @@ def setup_wireless_adb():
 
     if result.returncode != 0:
         print(f"{RED}Failed to enable TCP/IP mode{NC}")
+        print(f"{YELLOW}Error: {result.stderr}{NC}")
         return False
 
     print(f"{GREEN}✓ TCP/IP mode enabled{NC}")
     print(f"\n{YELLOW}You can now disconnect the USB cable{NC}")
     input("Press Enter after disconnecting USB cable...")
 
+    # Clear SELECTED_DEVICE since we're switching to wireless
+    SELECTED_DEVICE = None
+
     print(f"\n{BLUE}Step 3: Connecting to {device_ip}:5555...{NC}")
-    # Connect to device wirelessly
+    # Connect to device wirelessly (don't use device selection for connect command)
     result = subprocess.run(
         ["adb", "connect", f"{device_ip}:5555"],
         capture_output=True,
@@ -1302,17 +1433,16 @@ def launch_scrcpy():
             print(f"{YELLOW}Install: sudo apt install scrcpy  OR  sudo snap install scrcpy{NC}")
         return False
 
-    # Check for connected device
-    serial = get_connected_device_serial()
-    if not serial:
+    # Check for connected device and select if multiple
+    if not select_device_if_multiple():
         print(f"{RED}Error: No device connected!{NC}")
         print(f"{YELLOW}Connect device via USB or use 'fdev mirror --wireless' for wireless setup{NC}")
         return False
 
-    print(f"{GREEN}✓ Device found: {serial}{NC}")
+    print(f"{GREEN}✓ Device found: {SELECTED_DEVICE}{NC}")
 
     # Build scrcpy command with optimized settings
-    cmd = ["scrcpy", "-s", serial, "--no-mouse-hover", "--always-on-top", "-m", "1080", "-b", "5M"]
+    cmd = ["scrcpy", "-s", SELECTED_DEVICE, "--no-mouse-hover", "--always-on-top", "-m", "1080", "-b", "5M"]
 
     print(f"\n{BLUE}Launching scrcpy...{NC}")
     print(f"{YELLOW}Command: {' '.join(cmd)}{NC}\n")
@@ -1385,6 +1515,10 @@ def show_usage():
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
     print(f"  {GREEN}fdev mirror --wireless{NC}         # Setup wireless ADB first")
+    print(f"  {GREEN}fdev uninstall{NC}                 # Uninstall app (auto-selects device)")
+
+    print(f"\n{BLUE}Note:{NC}")
+    print(f"  {YELLOW}Multiple devices detected?{NC} Tool will prompt you to select one.")
     sys.exit(1)
 
 def main():
