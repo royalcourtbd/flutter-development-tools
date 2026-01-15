@@ -751,6 +751,191 @@ def create_and_push_tag():
     print(f"\n{GREEN}✓ Version {new_version_str}+{build_number} updated, committed, and git tag {new_tag} created and pushed successfully!{NC}")
     return True
 
+def get_current_foreground_app():
+    """
+    Get the package name of currently running foreground app
+    Returns: (platform, package_name) tuple or (None, None) if failed
+    """
+    # Check for iOS simulator first
+    try:
+        ios_check = subprocess.run(
+            ["xcrun", "simctl", "list", "devices", "booted"],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+        ios_connected = ios_check.returncode == 0 and "Booted" in ios_check.stdout
+        
+        if ios_connected:
+            # Get foreground app on iOS simulator
+            result = subprocess.run(
+                ["xcrun", "simctl", "spawn", "booted", "launchctl", "list"],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                # Get frontmost app using AppleScript (macOS only)
+                applescript = '''tell application "System Events"
+                    set frontApp to name of first application process whose frontmost is true
+                    return frontApp
+                end tell'''
+                
+                try:
+                    front_result = subprocess.run(
+                        ["osascript", "-e", applescript],
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        timeout=3
+                    )
+                    
+                    if front_result.returncode == 0:
+                        app_name = front_result.stdout.strip()
+                        if app_name and app_name.lower() == "simulator":
+                            # Try to get bundle ID from iOS simulator
+                            # For now, return a placeholder - iOS doesn't easily expose current app
+                            print(f"{YELLOW}iOS Simulator is running but cannot automatically detect current app{NC}")
+                            print(f"{YELLOW}Please use 'fdev uninstall' to manually uninstall{NC}")
+                            return ("ios", None)
+                except Exception:
+                    pass
+                
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    
+    # Check for Android device
+    try:
+        android_check = subprocess.run(
+            ["adb", "devices"],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+        android_connected = android_check.returncode == 0 and len(android_check.stdout.strip().split('\n')) > 1
+        
+        if android_connected:
+            # Get current foreground app on Android
+            result = subprocess.run(
+                ["adb", "shell", "dumpsys", "window", "windows"],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                # Parse output to find current focused app
+                for line in result.stdout.split('\n'):
+                    if 'mCurrentFocus' in line or 'mFocusedApp' in line or 'mFocusedWindow' in line:
+                        # Extract package name using regex
+                        match = re.search(r'u0 ([^/\s]+)', line)
+                        if match:
+                            package_name = match.group(1)
+                            return ("android", package_name)
+                
+                # Fallback: Try using dumpsys activity
+                result2 = subprocess.run(
+                    ["adb", "shell", "dumpsys", "activity", "activities"],
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=5
+                )
+                
+                if result2.returncode == 0:
+                    # Try multiple patterns for different Android versions
+                    # Pattern 1: mResumedActivity (older Android)
+                    match = re.search(r'mResumedActivity.*?{.*?u0\s+(\S+?)/', result2.stdout)
+                    if match:
+                        package_name = match.group(1)
+                        return ("android", package_name)
+
+                    # Pattern 2: topResumedActivity or ResumedActivity (newer Android)
+                    match = re.search(r'(?:top)?ResumedActivity.*?u0\s+(\S+?)/', result2.stdout)
+                    if match:
+                        package_name = match.group(1)
+                        return ("android", package_name)
+            
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    
+    return (None, None)
+
+def clear_app_data():
+    """
+    Automatically clear data of currently running foreground app
+    Works for both Android and iOS on all operating systems (macOS, Linux, Windows)
+    """
+    print(f"{YELLOW}Clearing app data for foreground app...{NC}\n")
+    
+    # Get current foreground app
+    platform_type, package_name = get_current_foreground_app()
+    
+    if not platform_type:
+        print(f"{RED}Error: No device/simulator detected!{NC}")
+        print(f"{YELLOW}Please connect an Android device or start an iOS simulator{NC}")
+        return False
+    
+    if not package_name:
+        print(f"{RED}Error: Could not detect foreground app{NC}")
+        print(f"{YELLOW}Make sure an app is running in the foreground{NC}")
+        return False
+    
+    print(f"{BLUE}Platform: {platform_type.upper()}{NC}")
+    print(f"{BLUE}App: {package_name}{NC}\n")
+    
+    # Ask for confirmation
+    user_input = input(f"Clear data for {GREEN}{package_name}{NC}? (Y/n): ")
+    if user_input.lower() == 'n':
+        print(f"{YELLOW}Operation cancelled{NC}")
+        return False
+    
+    # Clear data based on platform
+    if platform_type == "android":
+        # Clear app data on Android
+        success = run_flutter_command(
+            ["adb", "shell", "pm", "clear", package_name],
+            f"Clearing app data...                                "
+        )
+        
+        if success:
+            print(f"\n{GREEN}✓ App data cleared successfully!{NC}")
+            print(f"{BLUE}You can now relaunch the app from the device{NC}")
+        else:
+            print(f"\n{RED}✗ Failed to clear app data!{NC}")
+            print(f"{YELLOW}Make sure the app package name is correct{NC}")
+        
+        return success
+    
+    elif platform_type == "ios":
+        # iOS doesn't support direct app data clearing via command line
+        # We need to uninstall and reinstall the app
+        print(f"{YELLOW}iOS Note: iOS doesn't support clearing app data directly{NC}")
+        print(f"{YELLOW}Options:{NC}")
+        print(f"  1. Reset app data from device: Settings → General → iPhone Storage → [App] → Delete App")
+        print(f"  2. Uninstall and reinstall the app using 'fdev uninstall' then 'fdev install'")
+        print(f"  3. On simulator: Device → Erase All Content and Settings")
+        
+        # Offer to uninstall
+        user_choice = input(f"\nWould you like to uninstall the app instead? (y/N): ")
+        if user_choice.lower() == 'y':
+            return uninstall_app()
+        
+        return False
+    
+    return False
+
 def uninstall_app():
     """Uninstall the app from connected device (Android/iOS)"""
     print(f"{YELLOW}Uninstalling app from device...{NC}\n")
@@ -1021,6 +1206,7 @@ def show_usage():
     print("  release-run  Build & install release APK on connected device")
     print("  install      Install built APK on connected device")
     print("  uninstall    Uninstall app from connected device")
+    print("  clear-data   Clear data of currently running foreground app (Android/iOS)")
     print("  pod          Update iOS pods")
     print("  tag          Create and push git tag from pubspec version")
     print("  commit       Smart git commit with AI-generated message")
@@ -1057,6 +1243,8 @@ def main():
         install_apk()
     elif command == "uninstall":
         uninstall_app()
+    elif command == "clear-data":
+        clear_app_data()
     elif command == "pod":
         update_pods()
     elif command == "tag":

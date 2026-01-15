@@ -90,7 +90,35 @@ create-page page user_profile       # Direct command
 ### Device Commands
 ```bash
 fdev uninstall               # Uninstall app from connected device
+fdev clear-data              # Clear data of currently running foreground app (Android/iOS)
 ```
+
+#### 🆕 Clear App Data Feature
+Automatically clears data of the currently running foreground app without manual package name input!
+
+**Features:**
+- ✅ Automatic package name detection (no manual input needed)
+- ✅ Android full support (works on all OS: macOS, Linux, Windows)
+- ✅ iOS partial support (manual options provided)
+- ✅ Safety confirmation before clearing
+- ✅ Clears all app data: cache, database, settings, files
+
+**Quick Usage:**
+```bash
+# 1. Open the app you want to clear data for on your device
+# 2. Run the command
+fdev clear-data
+
+# It will detect the app and ask for confirmation
+```
+
+**Platform Support:**
+- **Android**: Full automatic support - detects foreground app and clears data with `pm clear`
+- **iOS**: Provides manual instructions (iOS doesn't support direct data clearing)
+
+📖 **Detailed Documentation:**
+- English: See `CLEAR_DATA_FEATURE.md`
+- বাংলা: See `CLEAR_DATA_BANGLA.md`
 
 ## 🤖 AI Features
 
