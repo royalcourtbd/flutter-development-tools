@@ -331,6 +331,70 @@ def display_aab_size():
     else:
         print(f"{RED}AAB file not found in {aab_dir}{NC}")
 
+def common_build_process(
+    build_name,
+    build_command,
+    build_description,
+    output_dir,
+    file_extension,
+    install_after=False
+):
+    """
+    Common build process for all build types (APK, APK-split, AAB)
+
+    Parameters:
+        build_name: Display name for the build (e.g., "APK", "AAB")
+        build_command: List of flutter build command arguments
+        build_description: Loading text for the build step
+        output_dir: Path object where build output is located
+        file_extension: "apk" or "aab"
+        install_after: Boolean to install APK after build (default: False)
+
+    Returns:
+        Boolean indicating success
+    """
+    # Initial message
+    print(f"{YELLOW}Building {build_name}...{NC}\n")
+
+    # Step 1: Clean the project
+    run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
+
+    # Step 2: Get dependencies
+    run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
+
+    # Step 3: Generate localizations
+    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
+
+    # Step 4: Generate build files
+    run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
+
+    # Step 5: Build (APK/AAB)
+    run_flutter_command(build_command, build_description)
+
+    # Step 6: Rename build files with app label and date
+    rename_build_files(output_dir, file_extension)
+
+    # Step 7: Display file size
+    if file_extension == "apk":
+        display_apk_size()
+    else:
+        display_aab_size()
+
+    # Step 8: Install (if requested) or open directory
+    if install_after:
+        install_result = install_apk()
+        if install_result:
+            print(f"\n{GREEN}✓ {build_name} built and installed successfully!{NC}")
+        else:
+            print(f"\n{RED}✗ {build_name} built but install failed!{NC}")
+        return install_result
+    else:
+        # Success message
+        print(f"\n{GREEN}✓ {build_name} built successfully!{NC}")
+        # Open the directory containing the build
+        open_directory(str(output_dir))
+        return True
+
 def run_flutter_command(cmd_list, description):
     """
     Runs a flutter/dart command with a loading spinner.
@@ -354,87 +418,47 @@ def run_flutter_command(cmd_list, description):
 @timer_decorator
 def build_apk():
     """Build APK (Full Process)"""
-    print(f"{YELLOW}Building APK (Full Process)...{NC}\n")
-
-    # Clean the project
-    run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
-
-    # Get dependencies
-    run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
-
-    # Generate localizations
-    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
-
-    # Generate build files
-    run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
-
-    # Build the APK
-    run_flutter_command([
-        "flutter", "build", "apk", "--release", "--obfuscate", "--target-platform", "android-arm64", "--split-debug-info=./"
-    ], "Building APK...                                      ")
-    print(f"\n{GREEN}✓ APK built successfully!{NC}")
-
-    # Rename APK files with app label and date
-    apk_dir = Path("build/app/outputs/flutter-apk")
-    rename_build_files(apk_dir, "apk")
-
-    # Display APK size
-    display_apk_size()
-
-    # Open the directory containing the APK
-    open_directory("build/app/outputs/flutter-apk/")
+    return common_build_process(
+        build_name="APK (Full Process)",
+        build_command=[
+            "flutter", "build", "apk", "--release", "--obfuscate",
+            "--target-platform", "android-arm64", "--split-debug-info=./"
+        ],
+        build_description="Building APK...                                      ",
+        output_dir=Path("build/app/outputs/flutter-apk"),
+        file_extension="apk",
+        install_after=False
+    )
 
 @timer_decorator
 def build_apk_split_per_abi():
     """Build APK with --split-per-abi"""
-    print(f"{YELLOW}Building APK (split-per-abi)...{NC}\n")
-    # Clean the project
-    run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
-    # Get dependencies
-    run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
-    # Generate localizations
-    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
-    # Generate build files
-    run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
-    # Build APK with split-per-abi
-    run_flutter_command([
-        "flutter", "build", "apk", "--release", "--split-per-abi", "--obfuscate", "--split-debug-info=./"
-    ], "Building APK (split-per-abi)...                      ")
-    print(f"\n{GREEN}✓ APK (split-per-abi) built successfully!{NC}")
-
-    # Rename APK files with app label and date
-    apk_dir = Path("build/app/outputs/flutter-apk")
-    rename_build_files(apk_dir, "apk")
-
-    # Display APK size
-    display_apk_size()
-    # Open the directory containing the APK
-    open_directory("build/app/outputs/flutter-apk/")
+    return common_build_process(
+        build_name="APK (split-per-abi)",
+        build_command=[
+            "flutter", "build", "apk", "--release", "--split-per-abi",
+            "--obfuscate", "--split-debug-info=./"
+        ],
+        build_description="Building APK (split-per-abi)...                      ",
+        output_dir=Path("build/app/outputs/flutter-apk"),
+        file_extension="apk",
+        install_after=False
+    )
 
 @timer_decorator
 def build_aab():
     """Build AAB"""
-    print(f"{YELLOW}Building AAB...{NC}\n")
-    # Clean the project
-    run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
-    # Get dependencies
-    run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
-    # Generate localizations
-    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
-    # Generate build files
-    run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
-    # Build AAB
-    run_flutter_command(["flutter", "build", "appbundle", "--release", "--obfuscate", "--split-debug-info=./"], "Building AAB...                                      ")
-    print(f"\n{GREEN}✓ AAB built successfully!{NC}")
-
-    # Rename AAB files with app label and date
-    aab_dir = Path("build/app/outputs/bundle/release")
-    rename_build_files(aab_dir, "aab")
-
-    # Display AAB size
-    display_aab_size()
-    # Open the directory containing the AAB
-    open_directory("build/app/outputs/bundle/release/")
+    return common_build_process(
+        build_name="AAB",
+        build_command=[
+            "flutter", "build", "appbundle", "--release",
+            "--obfuscate", "--split-debug-info=./"
+        ],
+        build_description="Building AAB...                                      ",
+        output_dir=Path("build/app/outputs/bundle/release"),
+        file_extension="aab",
+        install_after=False
+    )
 
 def generate_lang():
     """Generate localization files"""
@@ -494,23 +518,17 @@ def cleanup_project():
 @timer_decorator
 def release_run():
     """Build & Install Release APK"""
-    print(f"{YELLOW}Building & Installing Release APK...{NC}\n")
-    run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
-    run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
-    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
-    run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
-    run_flutter_command(["flutter", "build", "apk", "--release", "--obfuscate", "--target-platform", "android-arm64", "--split-debug-info=./"], "Building APK...                                      ")
-
-    # Rename APK files with app label and date
-    apk_dir = Path("build/app/outputs/flutter-apk")
-    rename_build_files(apk_dir, "apk")
-
-    display_apk_size()
-    install_result = install_apk()
-    if install_result:
-        print(f"\n{GREEN}✓ APK built and installed successfully!{NC}")
-    else:
-        print(f"\n{RED}✗ APK built but install failed!{NC}")
+    return common_build_process(
+        build_name="Release APK",
+        build_command=[
+            "flutter", "build", "apk", "--release", "--obfuscate",
+            "--target-platform", "android-arm64", "--split-debug-info=./"
+        ],
+        build_description="Building APK...                                      ",
+        output_dir=Path("build/app/outputs/flutter-apk"),
+        file_extension="apk",
+        install_after=True
+    )
 
 def install_apk():
     """
