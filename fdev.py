@@ -119,6 +119,32 @@ def build_adb_cmd(cmd_list, require_device=True):
 
     return adb_cmd
 
+def ensure_device_connected(error_message=None, additional_help=None):
+    """
+    Wrapper function to check and select Android device
+
+    Parameters:
+        error_message: Custom error message (default: "No Android device connected!")
+        additional_help: Additional help text to display after error
+
+    Returns:
+        Boolean - True if device selected/available, False otherwise
+    """
+    if not select_device_if_multiple():
+        # Use custom error message or default
+        if error_message:
+            print(f"{RED}Error: {error_message}{NC}")
+        else:
+            print(f"{RED}Error: No Android device connected!{NC}")
+
+        # Display additional help if provided
+        if additional_help:
+            print(f"{YELLOW}{additional_help}{NC}")
+
+        return False
+
+    return True
+
 # ============================================================================
 # END DEVICE SELECTION FUNCTIONS
 # ============================================================================
@@ -307,29 +333,31 @@ def rename_build_files(output_dir, file_extension, app_label=None):
         except Exception as e:
             print(f"{RED}  ✗ Failed to rename {file_path.name}: {e}{NC}")
 
-def display_apk_size():
-    """Function to display APK size"""
-    apk_dir = Path("build/app/outputs/flutter-apk")
-    apk_files = list(apk_dir.glob("*.apk")) if apk_dir.exists() else []
-    if apk_files:
-        for apk_path in apk_files:
-            size_bytes = apk_path.stat().st_size
-            size_mb = round(size_bytes / 1048576, 2)
-            print(f"{BLUE}APK: {apk_path.name} | Size: {size_mb} MB{NC}")
-    else:
-        print(f"{RED}APK file not found in {apk_dir}{NC}")
+def display_build_size(file_type, directory):
+    """
+    Display build file size (works for both APK and AAB)
 
-def display_aab_size():
-    """Function to display AAB size"""
-    aab_dir = Path("build/app/outputs/bundle/release")
-    aab_files = list(aab_dir.glob("*.aab")) if aab_dir.exists() else []
-    if aab_files:
-        for aab_path in aab_files:
-            size_bytes = aab_path.stat().st_size
+    Parameters:
+        file_type: "apk" or "aab"
+        directory: Path object or string of the directory containing build files
+
+    Returns:
+        None
+    """
+    # Convert to Path object if string
+    build_dir = Path(directory) if isinstance(directory, str) else directory
+
+    # Get files with the specified extension
+    build_files = list(build_dir.glob(f"*.{file_type}")) if build_dir.exists() else []
+
+    if build_files:
+        for build_file in build_files:
+            size_bytes = build_file.stat().st_size
             size_mb = round(size_bytes / 1048576, 2)
-            print(f"{BLUE}AAB: {aab_path.name} | Size: {size_mb} MB{NC}")
+            # Display with uppercase file type (APK, AAB)
+            print(f"{BLUE}{file_type.upper()}: {build_file.name} | Size: {size_mb} MB{NC}")
     else:
-        print(f"{RED}AAB file not found in {aab_dir}{NC}")
+        print(f"{RED}{file_type.upper()} file not found in {build_dir}{NC}")
 
 def common_build_process(
     build_name,
@@ -375,10 +403,7 @@ def common_build_process(
     rename_build_files(output_dir, file_extension)
 
     # Step 7: Display file size
-    if file_extension == "apk":
-        display_apk_size()
-    else:
-        display_aab_size()
+    display_build_size(file_extension, output_dir)
 
     # Step 8: Install (if requested) or open directory
     if install_after:
@@ -538,8 +563,7 @@ def install_apk():
     Automatically launches the app after successful installation.
     """
     # Select device if multiple connected
-    if not select_device_if_multiple():
-        print(f"{RED}Error: No Android device connected!{NC}")
+    if not ensure_device_connected():
         return False
 
     apk_dir = Path("build/app/outputs/flutter-apk")
@@ -946,7 +970,7 @@ def get_current_foreground_app():
 
         if android_connected:
             # Select device if multiple connected
-            if not select_device_if_multiple():
+            if not ensure_device_connected():
                 return (None, None)
 
             # Get current foreground app on Android
@@ -1137,8 +1161,7 @@ def uninstall_app():
         print(f"{BLUE}Android device detected{NC}")
 
         # Select device if multiple connected
-        if not select_device_if_multiple():
-            print(f"{RED}Error: Device selection failed!{NC}")
+        if not ensure_device_connected("Device selection failed!"):
             return False
 
         # Get package name dynamically
@@ -1452,9 +1475,10 @@ def launch_scrcpy():
         return False
 
     # Check for connected device and select if multiple
-    if not select_device_if_multiple():
-        print(f"{RED}Error: No device connected!{NC}")
-        print(f"{YELLOW}Connect device via USB or use 'fdev mirror --wireless' for wireless setup{NC}")
+    if not ensure_device_connected(
+        "No device connected!",
+        "Connect device via USB or use 'fdev mirror --wireless' for wireless setup"
+    ):
         return False
 
     print(f"{GREEN}✓ Device found: {SELECTED_DEVICE}{NC}")
