@@ -1172,6 +1172,168 @@ def smart_commit():
         print(f"{RED}Error creating commit: {e}{NC}")
         return False
 
+def get_connected_device_serial():
+    """
+    Get the serial number of the connected Android device
+    Returns the device serial or None if no device found
+    """
+    try:
+        result = subprocess.run(
+            ["adb", "devices"],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')
+            # Skip the first line ("List of devices attached")
+            for line in lines[1:]:
+                if line.strip() and '\tdevice' in line:
+                    # Extract device serial (first part before tab)
+                    serial = line.split('\t')[0].strip()
+                    return serial
+        return None
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+def setup_wireless_adb():
+    """
+    Setup wireless ADB connection
+    Guides user through connecting device wirelessly
+    """
+    print(f"{YELLOW}Setting up Wireless ADB...{NC}\n")
+
+    # Check if device is connected via USB
+    serial = get_connected_device_serial()
+    if not serial:
+        print(f"{RED}Error: No device connected via USB!{NC}")
+        print(f"{YELLOW}Please connect your device via USB first{NC}")
+        return False
+
+    print(f"{GREEN}✓ Device found: {serial}{NC}")
+    print(f"\n{BLUE}Step 1: Getting device IP address...{NC}")
+
+    # Get device IP address
+    try:
+        result = subprocess.run(
+            ["adb", "shell", "ip", "addr", "show", "wlan0"],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+
+        if result.returncode == 0:
+            # Extract IP address
+            match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+            if match:
+                device_ip = match.group(1)
+                print(f"{GREEN}Device IP: {device_ip}{NC}")
+            else:
+                print(f"{RED}Could not detect IP address{NC}")
+                device_ip = input(f"Enter device IP address manually: ")
+        else:
+            device_ip = input(f"Enter device IP address: ")
+    except Exception:
+        device_ip = input(f"Enter device IP address: ")
+
+    if not device_ip:
+        print(f"{RED}IP address required!{NC}")
+        return False
+
+    print(f"\n{BLUE}Step 2: Setting up ADB on port 5555...{NC}")
+    # Enable TCP/IP mode on port 5555
+    result = subprocess.run(
+        ["adb", "tcpip", "5555"],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace'
+    )
+
+    if result.returncode != 0:
+        print(f"{RED}Failed to enable TCP/IP mode{NC}")
+        return False
+
+    print(f"{GREEN}✓ TCP/IP mode enabled{NC}")
+    print(f"\n{YELLOW}You can now disconnect the USB cable{NC}")
+    input("Press Enter after disconnecting USB cable...")
+
+    print(f"\n{BLUE}Step 3: Connecting to {device_ip}:5555...{NC}")
+    # Connect to device wirelessly
+    result = subprocess.run(
+        ["adb", "connect", f"{device_ip}:5555"],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace'
+    )
+
+    if result.returncode == 0 and "connected" in result.stdout.lower():
+        print(f"{GREEN}✓ Wireless ADB connected successfully!{NC}")
+        print(f"\n{BLUE}Device: {device_ip}:5555{NC}")
+        print(f"\n{YELLOW}To disconnect: adb disconnect{NC}")
+        print(f"{YELLOW}To reconnect via USB: adb usb{NC}")
+        return True
+    else:
+        print(f"{RED}Failed to connect wirelessly{NC}")
+        print(f"{YELLOW}Output: {result.stdout}{NC}")
+        return False
+
+def launch_scrcpy():
+    """
+    Launch scrcpy with optimized settings
+    """
+    print(f"{YELLOW}Launching scrcpy...{NC}\n")
+
+    # Check if scrcpy is installed (cross-platform)
+    scrcpy_path = shutil.which("scrcpy")
+    if not scrcpy_path:
+        print(f"{RED}Error: scrcpy not found!{NC}")
+        if is_windows():
+            print(f"{YELLOW}Install: scoop install scrcpy  OR  choco install scrcpy{NC}")
+        elif is_macos():
+            print(f"{YELLOW}Install: brew install scrcpy{NC}")
+        else:
+            print(f"{YELLOW}Install: sudo apt install scrcpy  OR  sudo snap install scrcpy{NC}")
+        return False
+
+    # Check for connected device
+    serial = get_connected_device_serial()
+    if not serial:
+        print(f"{RED}Error: No device connected!{NC}")
+        print(f"{YELLOW}Connect device via USB or use 'fdev mirror --wireless' for wireless setup{NC}")
+        return False
+
+    print(f"{GREEN}✓ Device found: {serial}{NC}")
+
+    # Build scrcpy command with optimized settings
+    cmd = ["scrcpy", "-s", serial, "--no-mouse-hover", "--always-on-top", "-m", "1080", "-b", "5M"]
+
+    print(f"\n{BLUE}Launching scrcpy...{NC}")
+    print(f"{YELLOW}Command: {' '.join(cmd)}{NC}\n")
+
+    try:
+        # Launch scrcpy (blocking call)
+        result = subprocess.run(cmd)
+
+        if result.returncode == 0:
+            print(f"\n{GREEN}✓ scrcpy closed successfully{NC}")
+            return True
+        else:
+            print(f"\n{YELLOW}scrcpy exited with code {result.returncode}{NC}")
+            return False
+    except KeyboardInterrupt:
+        print(f"\n{YELLOW}scrcpy interrupted by user{NC}")
+        return False
+    except Exception as e:
+        print(f"{RED}Error launching scrcpy: {e}{NC}")
+        return False
+
 def create_page(page_name):
     """Create page structure"""
     print(f"{YELLOW}Creating page...{NC}\n")
@@ -1193,24 +1355,36 @@ def create_page(page_name):
 
 def show_usage():
     """Show usage information"""
-    print(f"{YELLOW}Usage: {sys.argv[0]} [command]{NC}")
-    print("\nAvailable commands:")
+    print(f"{YELLOW}Usage: {sys.argv[0]} [command] [options]{NC}")
+    print(f"\n{BLUE}Build Commands:{NC}")
     print("  apk          Build release APK (Full Process)")
     print("  apk-split    Build APK with --split-per-abi")
     print("  aab          Build release AAB")
+    print("  release-run  Build & install release APK on connected device")
+
+    print(f"\n{BLUE}Development Commands:{NC}")
     print("  lang         Generate localization files")
     print("  db           Run build_runner")
     print("  setup        Perform full project setup")
-    print("  cache-repair Repair pub cache")
     print("  cleanup      Clean project and get dependencies")
-    print("  release-run  Build & install release APK on connected device")
+    print("  cache-repair Repair pub cache")
+    print("  page         Create page structure (usage: fdev page <page_name>)")
+
+    print(f"\n{BLUE}Device Commands:{NC}")
     print("  install      Install built APK on connected device")
     print("  uninstall    Uninstall app from connected device")
-    print("  clear-data   Clear data of currently running foreground app (Android/iOS)")
-    print("  pod          Update iOS pods")
-    print("  tag          Create and push git tag from pubspec version")
+    print("  clear-data   Clear data of currently running foreground app")
+    print("  mirror       Launch scrcpy screen mirror (auto-detect device)")
+    print("    --wireless Setup wireless ADB connection")
+
+    print(f"\n{BLUE}Git & iOS Commands:{NC}")
+    print("  pod          Update iOS pods (macOS/Linux only)")
+    print("  tag          Create and push git tag (auto-increment)")
     print("  commit       Smart git commit with AI-generated message")
-    print("  page         Create page structure (usage: {sys.argv[0]} page <page_name>)")
+
+    print(f"\n{BLUE}Examples:{NC}")
+    print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
+    print(f"  {GREEN}fdev mirror --wireless{NC}         # Setup wireless ADB first")
     sys.exit(1)
 
 def main():
@@ -1251,6 +1425,15 @@ def main():
         create_and_push_tag()
     elif command == "commit":
         smart_commit()
+    elif command == "mirror":
+        # Check for wireless option
+        wireless = "--wireless" in sys.argv
+
+        # If wireless flag is set, setup wireless ADB first
+        if wireless:
+            setup_wireless_adb()
+        else:
+            launch_scrcpy()
     elif command == "page":
         if len(sys.argv) < 3:
             print(f"{RED}Error: Page name is required.{NC}")
