@@ -18,6 +18,14 @@ from managers.device import (
 from managers.build import run_flutter_command, get_package_name
 
 
+def is_flutter_project_root():
+    """
+    Check if current directory is a Flutter project root.
+    Returns True if pubspec.yaml exists in current directory.
+    """
+    return PATHS['pubspec'].exists()
+
+
 def get_current_foreground_app():
     """
     Get the package name of currently running foreground app
@@ -202,13 +210,13 @@ def clear_app_data():
     return False
 
 
-def uninstall_app():
-    """Uninstall the app from connected device (Android/iOS)"""
-    print(f"{YELLOW}Uninstalling app from device...{NC}\n")
-
+def _uninstall_from_project_root():
+    """
+    Uninstall app using project files (build.gradle / Info.plist).
+    Called when running from Flutter project root directory.
+    """
     # Check which device is connected
     try:
-        # Check for iOS simulator
         ios_check = subprocess.run(
             ["xcrun", "simctl", "list", "devices", "booted"],
             capture_output=True,
@@ -221,7 +229,6 @@ def uninstall_app():
     except (FileNotFoundError, subprocess.TimeoutExpired):
         ios_connected = False
 
-    # Check for Android device using new function
     devices = get_all_connected_devices()
     android_connected = len(devices) > 0
 
@@ -229,14 +236,12 @@ def uninstall_app():
     if ios_connected and not android_connected:
         print(f"{BLUE}iOS Simulator detected{NC}")
 
-        # Get bundle identifier from iOS
         info_plist_path = PATHS['info_plist']
         if not info_plist_path.exists():
             print(f"{RED}Error: Info.plist not found{NC}")
             return False
 
         try:
-            # Extract bundle identifier using PlistBuddy
             result = subprocess.run(
                 ["/usr/libexec/PlistBuddy", "-c", "Print CFBundleIdentifier", str(info_plist_path)],
                 capture_output=True,
@@ -248,7 +253,6 @@ def uninstall_app():
             bundle_id = result.stdout.strip()
 
             if not bundle_id or bundle_id.startswith("$("):
-                # Fallback to package name from Android
                 bundle_id = get_package_name()
                 if not bundle_id:
                     print(f"{RED}Cannot get bundle identifier{NC}")
@@ -256,7 +260,6 @@ def uninstall_app():
 
             print(f"{BLUE}Bundle ID: {bundle_id}{NC}")
 
-            # Uninstall from iOS simulator
             success = run_flutter_command(
                 ["xcrun", "simctl", "uninstall", "booted", bundle_id],
                 "Uninstalling from iOS simulator...                  "
@@ -276,11 +279,9 @@ def uninstall_app():
     elif android_connected:
         print(f"{BLUE}Android device detected{NC}")
 
-        # Select device if multiple connected
         if not ensure_device_connected("Device selection failed!"):
             return False
 
-        # Get package name dynamically
         package_name = get_package_name()
         if not package_name:
             print(f"{RED}Cannot proceed without package name{NC}")
@@ -302,6 +303,87 @@ def uninstall_app():
         print(f"{RED}No device/simulator detected!{NC}")
         print(f"{YELLOW}Please connect an Android device or start an iOS simulator{NC}")
         return False
+
+
+def _uninstall_foreground_app():
+    """
+    Uninstall the currently running foreground app.
+    Called when NOT in Flutter project root directory.
+    Shows extra warnings and requires confirmation.
+    """
+    print(f"{YELLOW}⚠️  Not in Flutter project directory{NC}")
+    print(f"{YELLOW}   Detecting foreground app instead...{NC}\n")
+
+    # Get current foreground app
+    platform_type, package_name = get_current_foreground_app()
+
+    if not platform_type:
+        print(f"{RED}Error: No device/simulator detected!{NC}")
+        print(f"{YELLOW}Please connect an Android device or start an iOS simulator{NC}")
+        return False
+
+    if not package_name:
+        print(f"{RED}Error: Could not detect foreground app{NC}")
+        print(f"{YELLOW}Make sure an app is running in the foreground{NC}")
+        return False
+
+    # Show app info with warning
+    print(f"{BLUE}Platform: {platform_type.upper()}{NC}")
+    print(f"{BLUE}Detected App: {package_name}{NC}\n")
+
+    # Extra warning for foreground app uninstall
+    print(f"{RED}⚠️  WARNING: This will UNINSTALL the app completely!{NC}")
+    print(f"{RED}   All app data will be permanently deleted.{NC}\n")
+
+    # Simple Y/n confirmation
+    user_input = input(f"Uninstall {GREEN}{package_name}{NC}? (Y/n): ")
+    if user_input.lower() == 'n':
+        print(f"{YELLOW}Operation cancelled{NC}")
+        return False
+
+    # Proceed with uninstall
+    if platform_type == "android":
+        success = run_flutter_command(
+            build_adb_cmd(["uninstall", package_name]),
+            "Uninstalling from Android...                        "
+        )
+
+        if success:
+            print(f"\n{GREEN}✓ App uninstalled successfully from Android!{NC}")
+        else:
+            print(f"\n{RED}✗ Failed to uninstall app from Android!{NC}")
+        return success
+
+    elif platform_type == "ios":
+        success = run_flutter_command(
+            ["xcrun", "simctl", "uninstall", "booted", package_name],
+            "Uninstalling from iOS simulator...                  "
+        )
+
+        if success:
+            print(f"\n{GREEN}✓ App uninstalled successfully from iOS!{NC}")
+        else:
+            print(f"\n{RED}✗ Failed to uninstall app from iOS!{NC}")
+        return success
+
+    return False
+
+
+def uninstall_app():
+    """
+    Uninstall the app from connected device (Android/iOS).
+
+    If running from Flutter project root: uses build.gradle/Info.plist for package name.
+    If NOT in project root: detects foreground app with extra safety confirmation.
+    """
+    print(f"{YELLOW}Uninstalling app from device...{NC}\n")
+
+    # Check if we're in a Flutter project root
+    if is_flutter_project_root():
+        print(f"{GREEN}✓ Flutter project detected{NC}\n")
+        return _uninstall_from_project_root()
+    else:
+        return _uninstall_foreground_app()
 
 
 def install_apk():
