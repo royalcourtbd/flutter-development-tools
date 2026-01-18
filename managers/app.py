@@ -4,11 +4,9 @@ App Manager - Install, uninstall, clear data functions
 """
 
 import subprocess
-from pathlib import Path
 
 from common_utils import RED, GREEN, YELLOW, BLUE, NC
 from core.constants import PATTERNS, PATHS
-from core.state import get_selected_device
 from managers.device import (
     get_all_connected_devices,
     ensure_device_connected,
