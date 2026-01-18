@@ -3,7 +3,6 @@
 Mirror Manager - scrcpy and wireless ADB functions
 """
 
-import re
 import shutil
 import subprocess
 

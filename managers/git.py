@@ -4,7 +4,6 @@ Git Manager - Git tag, commit, version functions
 """
 
 import os
-import re
 import sys
 import time
 import subprocess

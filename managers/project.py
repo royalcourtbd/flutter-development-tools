@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from common_utils import (
-    RED, GREEN, YELLOW, NC, CHECKMARK,
+    RED, GREEN, YELLOW,BLUE, NC, CHECKMARK,
     timer_decorator,
     is_windows,
 )

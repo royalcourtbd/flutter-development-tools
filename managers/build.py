@@ -3,7 +3,6 @@
 Build Manager - APK/AAB build functions
 """
 
-import re
 import time
 import shutil
 import subprocess

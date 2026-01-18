@@ -3,7 +3,6 @@
 App Manager - Install, uninstall, clear data functions
 """
 
-import re
 import subprocess
 from pathlib import Path
 
