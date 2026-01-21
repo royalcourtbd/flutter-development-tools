@@ -20,6 +20,7 @@ from managers.build import (
 from managers.git import (
     create_and_push_tag,
     smart_commit,
+    discard_changes,
 )
 from managers.app import (
     install_apk,
@@ -69,11 +70,13 @@ def show_usage():
     print("  pod          Update iOS pods (macOS/Linux only)")
     print("  tag          Create and push git tag (auto-increment)")
     print("  commit       Smart git commit with AI-generated message")
+    print("  discard      Discard all uncommitted changes (tracked + untracked)")
 
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
     print(f"  {GREEN}fdev mirror --wireless{NC}         # Setup wireless ADB first")
     print(f"  {GREEN}fdev uninstall{NC}                 # Uninstall app (auto-selects device)")
+    print(f"  {GREEN}fdev discard{NC}                   # Discard all uncommitted changes")
 
     print(f"\n{BLUE}Note:{NC}")
     print(f"  {YELLOW}Multiple devices detected?{NC} Tool will prompt you to select one.")
@@ -128,6 +131,8 @@ def main():
         create_and_push_tag()
     elif command == "commit":
         smart_commit()
+    elif command == "discard":
+        discard_changes(discard_all=True)
 
     # Mirror command
     elif command == "mirror":

@@ -273,6 +273,103 @@ def create_and_push_tag():
     return True
 
 
+def discard_changes(discard_all=True):
+    """Discard all uncommitted changes in the current git repository
+
+    Args:
+        discard_all: If True, also removes untracked files (git clean -fd)
+    """
+    print(f"{YELLOW}Discarding uncommitted changes...{NC}\n")
+
+    # Check if git repository
+    try:
+        subprocess.run(["git", "status"], check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        print(f"{RED}Error: Not a git repository or git not available{NC}")
+        return False
+
+    # Check for changes
+    try:
+        # Get tracked file changes
+        result = subprocess.run(["git", "status", "--porcelain"],
+                              capture_output=True, text=True, encoding='utf-8', errors='replace')
+        changes = result.stdout.strip()
+
+        if not changes:
+            print(f"{GREEN}No uncommitted changes to discard{NC}")
+            return True
+
+        # Parse and display changes
+        modified_files = []
+        untracked_files = []
+
+        for line in changes.split('\n'):
+            if line:
+                status = line[:2]
+                filename = line[3:]
+                if status.strip() == '??':
+                    untracked_files.append(filename)
+                else:
+                    modified_files.append(filename)
+
+        # Show what will be discarded
+        if modified_files:
+            print(f"{BLUE}Modified/Staged files to reset ({len(modified_files)}):{NC}")
+            for f in modified_files[:10]:
+                print(f"  {RED}✗{NC} {f}")
+            if len(modified_files) > 10:
+                print(f"  ... and {len(modified_files) - 10} more")
+            print()
+
+        if untracked_files and discard_all:
+            print(f"{BLUE}Untracked files to delete ({len(untracked_files)}):{NC}")
+            for f in untracked_files[:10]:
+                print(f"  {RED}✗{NC} {f}")
+            if len(untracked_files) > 10:
+                print(f"  ... and {len(untracked_files) - 10} more")
+            print()
+
+        # Ask for confirmation
+        total = len(modified_files) + (len(untracked_files) if discard_all else 0)
+        print(f"{YELLOW}⚠ WARNING: This action cannot be undone!{NC}")
+        user_input = input(f"Discard {total} file(s)? (Y/n): ")
+
+        if user_input.lower() == 'n':
+            print(f"{YELLOW}Operation cancelled{NC}")
+            return False
+
+        # Reset tracked file changes
+        if modified_files:
+            print(f"{BLUE}Resetting tracked files...{NC}")
+            result = subprocess.run(["git", "checkout", "."],
+                                  capture_output=True, text=True, encoding='utf-8', errors='replace')
+            if result.returncode != 0:
+                print(f"{RED}Error resetting tracked files: {result.stderr}{NC}")
+                return False
+
+            # Also reset staged changes
+            subprocess.run(["git", "reset", "HEAD"],
+                         capture_output=True, text=True, encoding='utf-8', errors='replace')
+            print(f"{GREEN}✓ Tracked files reset{NC}")
+
+        # Remove untracked files if requested
+        if untracked_files and discard_all:
+            print(f"{BLUE}Removing untracked files...{NC}")
+            result = subprocess.run(["git", "clean", "-fd"],
+                                  capture_output=True, text=True, encoding='utf-8', errors='replace')
+            if result.returncode != 0:
+                print(f"{RED}Error removing untracked files: {result.stderr}{NC}")
+                return False
+            print(f"{GREEN}✓ Untracked files removed{NC}")
+
+        print(f"\n{GREEN}✓ All uncommitted changes discarded successfully!{NC}")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error checking git changes: {e}{NC}")
+        return False
+
+
 @timer_decorator
 def smart_commit():
     """Generate git diff, create commit message using Gemini AI, and commit"""
