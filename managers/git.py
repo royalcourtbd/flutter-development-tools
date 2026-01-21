@@ -461,8 +461,8 @@ def smart_commit():
     print(f"{GREEN}{formatted_commit_message}{NC}\n")
 
     # Ask for confirmation
-    user_input = input(f"Proceed with this commit? (y/N): ")
-    if user_input.lower() != 'y':
+    user_input = input(f"Proceed with this commit? (Y/n): ")
+    if user_input.lower() == 'n':
         print(f"{YELLOW}Commit cancelled{NC}")
         return False
 
