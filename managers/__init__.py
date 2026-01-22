@@ -22,6 +22,7 @@ from .build import (
 from .git import (
     create_and_push_tag,
     smart_commit,
+    sync_branches,
 )
 
 from .app import (

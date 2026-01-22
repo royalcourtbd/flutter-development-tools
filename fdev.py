@@ -21,6 +21,7 @@ from managers.git import (
     create_and_push_tag,
     smart_commit,
     discard_changes,
+    sync_branches,
 )
 from managers.app import (
     install_apk,
@@ -71,12 +72,14 @@ def show_usage():
     print("  tag          Create and push git tag (auto-increment)")
     print("  commit       Smart git commit with AI-generated message")
     print("  discard      Discard all uncommitted changes (tracked + untracked)")
+    print("  sync         Sync current branch with other branches bidirectionally")
 
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
     print(f"  {GREEN}fdev mirror --wireless{NC}         # Setup wireless ADB first")
     print(f"  {GREEN}fdev uninstall{NC}                 # Uninstall app (auto-selects device)")
     print(f"  {GREEN}fdev discard{NC}                   # Discard all uncommitted changes")
+    print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}  # Sync with multiple branches")
 
     print(f"\n{BLUE}Note:{NC}")
     print(f"  {YELLOW}Multiple devices detected?{NC} Tool will prompt you to select one.")
@@ -133,6 +136,15 @@ def main():
         smart_commit()
     elif command == "discard":
         discard_changes(discard_all=True)
+    elif command == "sync":
+        if len(sys.argv) < 3:
+            print(f"{RED}Error: At least one branch name is required.{NC}")
+            print(f"Usage: fdev sync <branch1> [branch2] [branch3] ...")
+            print(f"\n{BLUE}Example:{NC}")
+            print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}")
+            sys.exit(1)
+        branch_names = sys.argv[2:]
+        sync_branches(branch_names)
 
     # Mirror command
     elif command == "mirror":

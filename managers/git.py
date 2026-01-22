@@ -498,3 +498,255 @@ def smart_commit():
     except subprocess.CalledProcessError as e:
         print(f"{RED}Error creating commit: {e}{NC}")
         return False
+
+
+def sync_branches(branch_names):
+    """Merge current branch with specified branches bidirectionally, push to all branches automatically
+
+    This function:
+    1. Fetches latest changes from remote
+    2. Merges specified branches INTO current branch
+    3. Pushes current branch to origin
+    4. Merges current branch INTO each specified branch and pushes them
+
+    Result: All specified branches + current branch become fully synchronized
+
+    Args:
+        branch_names: List of branch names to sync with (e.g., ["dev-farhan", "dev-sufi"])
+    """
+    print(f"{YELLOW}Syncing with branches: {', '.join(branch_names)}...{NC}\n")
+
+    # Check if git repository
+    try:
+        subprocess.run(["git", "status"], check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        print(f"{RED}Error: Not a git repository or git not available{NC}")
+        return False
+
+    # Get current branch name
+    try:
+        result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                              capture_output=True, text=True, check=True,
+                              encoding='utf-8', errors='replace')
+        current_branch = result.stdout.strip()
+        print(f"{BLUE}Current branch: {current_branch}{NC}")
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error getting current branch: {e}{NC}")
+        return False
+
+    # Check for uncommitted changes
+    try:
+        result = subprocess.run(["git", "status", "--porcelain"],
+                              capture_output=True, text=True, check=True,
+                              encoding='utf-8', errors='replace')
+        if result.stdout.strip():
+            print(f"{RED}Error: You have uncommitted changes{NC}")
+            print(f"{YELLOW}Please commit or stash your changes first{NC}")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error checking git status: {e}{NC}")
+        return False
+
+    # Step 1: Fetch latest changes
+    print(f"\n{BLUE}Step 1: Fetching latest changes...{NC}")
+    success = run_flutter_command(["git", "fetch", "origin"], "Fetching from origin...                              ")
+    if not success:
+        print(f"{RED}Failed to fetch latest changes{NC}")
+        return False
+
+    all_success = True
+    successfully_merged_branches = []
+
+    # Step 2: Merge each branch into current
+    print(f"\n{BLUE}Step 2: Merging branches into {current_branch}...{NC}")
+    for branch_name in branch_names:
+        print(f"\n{YELLOW}Merging {branch_name} into {current_branch}...{NC}")
+
+        merge_process = subprocess.run(
+            ["git", "merge", branch_name],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if merge_process.returncode == 0:
+            print(f"{GREEN}✓ Successfully merged {branch_name}{NC}")
+            successfully_merged_branches.append(branch_name)
+        else:
+            # Check for merge conflicts
+            try:
+                result = subprocess.run(
+                    ["git", "diff", "--name-only", "--diff-filter=U"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+                conflicted_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+
+                if conflicted_files:
+                    print(f"{RED}✗ Merge conflict detected in {len(conflicted_files)} file(s):{NC}")
+                    for file in conflicted_files:
+                        print(f"  • {file}")
+
+                    print(f"\n{BLUE}Opening conflicted files in VSCode...{NC}")
+
+                    valid_files = [f for f in conflicted_files if f]
+                    if valid_files:
+                        try:
+                            subprocess.run(["code"] + valid_files, check=True)
+                            print(f"{GREEN}✓ Opened all {len(valid_files)} file(s) in VSCode{NC}")
+                        except subprocess.CalledProcessError:
+                            print(f"{RED}✗ Failed to open files in VSCode{NC}")
+                        except FileNotFoundError:
+                            print(f"{RED}Error: VSCode (code) command not found{NC}")
+                            print(f"{YELLOW}Please install VSCode CLI or resolve conflicts manually{NC}")
+
+                    print(f"\n{YELLOW}Please resolve the conflicts in VSCode and then:{NC}")
+                    print(f"  1. Stage the resolved files: {BLUE}git add <file>{NC}")
+                    print(f"  2. Complete the merge: {BLUE}git commit{NC}")
+                    print(f"  3. Run sync again to push changes{NC}")
+                    print(f"  Or abort the merge: {BLUE}git merge --abort{NC}")
+
+                    all_success = False
+                    break
+                else:
+                    print(f"{RED}✗ Merge failed: {merge_process.stderr}{NC}")
+                    all_success = False
+                    break
+
+            except subprocess.CalledProcessError as e:
+                print(f"{RED}Error checking for conflicts: {e}{NC}")
+                all_success = False
+                break
+
+    if not all_success:
+        print(f"\n{RED}⚠ Sync stopped due to conflicts or errors{NC}")
+        return False
+
+    # Step 3: Push current branch
+    print(f"\n{BLUE}Step 3: Pushing {current_branch} to origin...{NC}")
+    push_success = run_flutter_command(
+        ["git", "push", "origin", current_branch],
+        f"Pushing {current_branch}...                              "
+    )
+    if not push_success:
+        print(f"{RED}Failed to push {current_branch}{NC}")
+        return False
+    print(f"{GREEN}✓ Pushed {current_branch} to origin{NC}")
+
+    # Step 4: Push merged changes to source branches
+    print(f"\n{BLUE}Step 4: Pushing merged changes to source branches...{NC}")
+    successfully_pushed_branches = []
+    failed_push_branches = []
+
+    for branch_name in successfully_merged_branches:
+        print(f"\n{YELLOW}Updating {branch_name} with merged changes...{NC}")
+
+        # Checkout the branch
+        checkout_result = subprocess.run(
+            ["git", "checkout", branch_name],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if checkout_result.returncode != 0:
+            print(f"{RED}✗ Failed to checkout {branch_name}: {checkout_result.stderr}{NC}")
+            failed_push_branches.append(branch_name)
+            continue
+        print(f"{GREEN}✓ Switched to {branch_name}{NC}")
+
+        # Merge current branch into this branch
+        merge_result = subprocess.run(
+            ["git", "merge", current_branch],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if merge_result.returncode != 0:
+            print(f"{RED}✗ Failed to merge {current_branch} into {branch_name}{NC}")
+            subprocess.run(["git", "checkout", current_branch], capture_output=True)
+            failed_push_branches.append(branch_name)
+            continue
+        print(f"{GREEN}✓ Merged {current_branch} into {branch_name}{NC}")
+
+        # Push the branch
+        push_result = subprocess.run(
+            ["git", "push", "origin", branch_name],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if push_result.returncode == 0:
+            print(f"{GREEN}✓ Pushed {branch_name} to origin - others can now pull!{NC}")
+            successfully_pushed_branches.append(branch_name)
+        else:
+            # Handle non-fast-forward push
+            if "non-fast-forward" in push_result.stderr or "rejected" in push_result.stderr:
+                print(f"{YELLOW}⚠ Remote {branch_name} has new changes, pulling and retrying...{NC}")
+
+                pull_result = subprocess.run(
+                    ["git", "pull", "origin", branch_name, "--no-rebase", "--no-edit"],
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+
+                if pull_result.returncode != 0:
+                    print(f"{RED}✗ Failed to pull {branch_name}: {pull_result.stderr}{NC}")
+                    failed_push_branches.append(branch_name)
+                    continue
+                print(f"{GREEN}✓ Pulled latest changes from {branch_name}{NC}")
+
+                push_retry = subprocess.run(
+                    ["git", "push", "origin", branch_name],
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+
+                if push_retry.returncode == 0:
+                    print(f"{GREEN}✓ Pushed {branch_name} to origin - others can now pull!{NC}")
+                    successfully_pushed_branches.append(branch_name)
+                else:
+                    print(f"{RED}✗ Failed to push {branch_name} after retry: {push_retry.stderr}{NC}")
+                    failed_push_branches.append(branch_name)
+            else:
+                print(f"{RED}✗ Failed to push {branch_name}: {push_result.stderr}{NC}")
+                failed_push_branches.append(branch_name)
+
+    # Return to current branch
+    print(f"\n{BLUE}Returning to {current_branch}...{NC}")
+    subprocess.run(["git", "checkout", current_branch], capture_output=True)
+
+    # Summary
+    print(f"\n{'='*55}")
+    if failed_push_branches:
+        print(f"{YELLOW}⚠ Sync completed with issues{NC}")
+    else:
+        print(f"{GREEN}✓ Sync complete!{NC}")
+    print(f"{'='*55}")
+    print(f"{BLUE}Summary:{NC}")
+    print(f"  • Merged: {', '.join(branch_names)} → {current_branch}")
+    print(f"  • Pushed: {current_branch} to origin")
+    if successfully_pushed_branches:
+        print(f"  {GREEN}• Updated & pushed: {', '.join(successfully_pushed_branches)}{NC}")
+    if failed_push_branches:
+        print(f"  {RED}• Failed to push: {', '.join(failed_push_branches)}{NC}")
+
+    if not failed_push_branches:
+        print(f"{BLUE}All team members can now pull from their branches.{NC}")
+    else:
+        print(f"{YELLOW}Some branches failed to update. You may need to manually resolve.{NC}")
+
+    return len(failed_push_branches) == 0
