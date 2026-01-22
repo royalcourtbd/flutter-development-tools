@@ -516,6 +516,10 @@ def sync_branches(branch_names):
     """
     print(f"{YELLOW}Syncing with branches: {', '.join(branch_names)}...{NC}\n")
 
+    # Track if any actual changes were made
+    changes_made = False
+    actions_taken = []
+
     # Check if git repository
     try:
         subprocess.run(["git", "status"], check=True, capture_output=True)
@@ -547,15 +551,18 @@ def sync_branches(branch_names):
         print(f"{RED}Error checking git status: {e}{NC}")
         return False
 
-    # Step 1: Fetch latest changes
-    print(f"\n{BLUE}Step 1: Fetching latest changes...{NC}")
-    success = run_flutter_command(["git", "fetch", "origin"], "Fetching from origin...                              ")
-    if not success:
+    # Step 1: Fetch latest changes (silent)
+    result = subprocess.run(
+        ["git", "fetch", "origin"],
+        capture_output=True, text=True,
+        encoding='utf-8', errors='replace'
+    )
+    if result.returncode != 0:
         print(f"{RED}Failed to fetch latest changes{NC}")
         return False
 
     # Step 2: Check for unpushed commits and auto-push
-    print(f"\n{BLUE}Step 2: Checking for unpushed commits...{NC}")
+    had_unpushed = False
     try:
         result = subprocess.run(
             ["git", "rev-list", f"origin/{current_branch}..{current_branch}"],
@@ -565,19 +572,21 @@ def sync_branches(branch_names):
         unpushed_commits = result.stdout.strip().split('\n') if result.stdout.strip() else []
 
         if unpushed_commits and unpushed_commits[0]:
+            had_unpushed = True
+            changes_made = True
             print(f"{YELLOW}Found {len(unpushed_commits)} unpushed commit(s) on {current_branch}{NC}")
             success = run_flutter_command(
                 ["git", "push", "origin", current_branch],
-                f"Auto-pushing {current_branch} to origin...                "
+                f"Pushing {current_branch} to origin...                     "
             )
             if not success:
                 print(f"{RED}Failed to push {current_branch} to origin{NC}")
                 return False
-            print(f"{GREEN}✓ {current_branch} pushed to origin{NC}")
-        else:
-            print(f"{GREEN}✓ {current_branch} is up to date with origin{NC}")
+            actions_taken.append(f"Pushed {len(unpushed_commits)} commit(s) from {current_branch}")
     except subprocess.CalledProcessError:
         # Remote branch might not exist, try to push anyway
+        had_unpushed = True
+        changes_made = True
         print(f"{YELLOW}Remote branch not found, pushing {current_branch}...{NC}")
         success = run_flutter_command(
             ["git", "push", "-u", "origin", current_branch],
@@ -586,15 +595,14 @@ def sync_branches(branch_names):
         if not success:
             print(f"{RED}Failed to push {current_branch} to origin{NC}")
             return False
+        actions_taken.append(f"Created and pushed {current_branch}")
 
     all_success = True
     successfully_merged_branches = []
+    branches_with_changes = []
 
     # Step 3: Merge each branch into current
-    print(f"\n{BLUE}Step 3: Merging branches into {current_branch}...{NC}")
     for branch_name in branch_names:
-        print(f"\n{YELLOW}Merging {branch_name} into {current_branch}...{NC}")
-
         merge_process = subprocess.run(
             ["git", "merge", branch_name],
             capture_output=True,
@@ -605,9 +613,11 @@ def sync_branches(branch_names):
 
         if merge_process.returncode == 0:
             if "Already up to date" in merge_process.stdout or "Already up-to-date" in merge_process.stdout:
-                print(f"{BLUE}ℹ {branch_name} already up to date - no changes to merge{NC}")
+                pass  # No changes, stay silent
             else:
-                print(f"{GREEN}✓ Successfully merged {branch_name}{NC}")
+                changes_made = True
+                branches_with_changes.append(branch_name)
+                print(f"{GREEN}✓ Merged {branch_name} → {current_branch}{NC}")
             successfully_merged_branches.append(branch_name)
         else:
             # Check for merge conflicts
@@ -662,25 +672,23 @@ def sync_branches(branch_names):
         print(f"\n{RED}⚠ Sync stopped due to conflicts or errors{NC}")
         return False
 
-    # Step 4: Push current branch
-    print(f"\n{BLUE}Step 4: Pushing {current_branch} to origin...{NC}")
-    push_success = run_flutter_command(
-        ["git", "push", "origin", current_branch],
-        f"Pushing {current_branch}...                              "
-    )
-    if not push_success:
-        print(f"{RED}Failed to push {current_branch}{NC}")
-        return False
-    print(f"{GREEN}✓ Pushed {current_branch} to origin{NC}")
+    # Step 4: Push current branch (silent if no changes)
+    if branches_with_changes:
+        push_result = subprocess.run(
+            ["git", "push", "origin", current_branch],
+            capture_output=True, text=True,
+            encoding='utf-8', errors='replace'
+        )
+        if push_result.returncode != 0:
+            print(f"{RED}Failed to push {current_branch}{NC}")
+            return False
+        actions_taken.append(f"Pushed {current_branch} with merged changes")
 
     # Step 5: Push merged changes to source branches
-    print(f"\n{BLUE}Step 5: Pushing merged changes to source branches...{NC}")
     successfully_pushed_branches = []
     failed_push_branches = []
 
     for branch_name in successfully_merged_branches:
-        print(f"\n{YELLOW}Updating {branch_name} with merged changes...{NC}")
-
         # Checkout the branch
         checkout_result = subprocess.run(
             ["git", "checkout", branch_name],
@@ -694,7 +702,6 @@ def sync_branches(branch_names):
             print(f"{RED}✗ Failed to checkout {branch_name}: {checkout_result.stderr}{NC}")
             failed_push_branches.append(branch_name)
             continue
-        print(f"{GREEN}✓ Switched to {branch_name}{NC}")
 
         # Merge current branch into this branch
         merge_result = subprocess.run(
@@ -711,10 +718,13 @@ def sync_branches(branch_names):
             failed_push_branches.append(branch_name)
             continue
 
+        branch_had_changes = False
         if "Already up to date" in merge_result.stdout or "Already up-to-date" in merge_result.stdout:
-            print(f"{BLUE}ℹ {branch_name} already up to date with {current_branch}{NC}")
+            pass  # Silent when up to date
         else:
-            print(f"{GREEN}✓ Merged {current_branch} into {branch_name}{NC}")
+            branch_had_changes = True
+            changes_made = True
+            print(f"{GREEN}✓ Merged {current_branch} → {branch_name}{NC}")
 
         # Push the branch
         push_result = subprocess.run(
@@ -726,12 +736,15 @@ def sync_branches(branch_names):
         )
 
         if push_result.returncode == 0:
-            print(f"{GREEN}✓ Pushed {branch_name} to origin - others can now pull!{NC}")
+            if branch_had_changes:
+                print(f"{GREEN}✓ Pushed {branch_name} to origin{NC}")
+                actions_taken.append(f"Updated {branch_name}")
             successfully_pushed_branches.append(branch_name)
         else:
             # Handle non-fast-forward push
             if "non-fast-forward" in push_result.stderr or "rejected" in push_result.stderr:
                 print(f"{YELLOW}⚠ Remote {branch_name} has new changes, pulling and retrying...{NC}")
+                changes_made = True
 
                 pull_result = subprocess.run(
                     ["git", "pull", "origin", branch_name, "--no-rebase", "--no-edit"],
@@ -756,8 +769,9 @@ def sync_branches(branch_names):
                 )
 
                 if push_retry.returncode == 0:
-                    print(f"{GREEN}✓ Pushed {branch_name} to origin - others can now pull!{NC}")
+                    print(f"{GREEN}✓ Pushed {branch_name} to origin{NC}")
                     successfully_pushed_branches.append(branch_name)
+                    actions_taken.append(f"Synced {branch_name} with remote")
                 else:
                     print(f"{RED}✗ Failed to push {branch_name} after retry: {push_retry.stderr}{NC}")
                     failed_push_branches.append(branch_name)
@@ -765,28 +779,29 @@ def sync_branches(branch_names):
                 print(f"{RED}✗ Failed to push {branch_name}: {push_result.stderr}{NC}")
                 failed_push_branches.append(branch_name)
 
-    # Return to current branch
-    print(f"\n{BLUE}Returning to {current_branch}...{NC}")
+    # Return to current branch (silent)
     subprocess.run(["git", "checkout", current_branch], capture_output=True)
 
-    # Summary
+    # Summary - compact if no changes, detailed if changes made
+    if not changes_made and not failed_push_branches:
+        print(f"\n{GREEN}✓ Everything already in sync - no changes needed{NC}")
+        return True
+
+    # Detailed summary when changes were made
     print(f"\n{'='*55}")
     if failed_push_branches:
         print(f"{YELLOW}⚠ Sync completed with issues{NC}")
     else:
         print(f"{GREEN}✓ Sync complete!{NC}")
     print(f"{'='*55}")
-    print(f"{BLUE}Summary:{NC}")
-    print(f"  • Merged: {', '.join(branch_names)} → {current_branch}")
-    print(f"  • Pushed: {current_branch} to origin")
-    if successfully_pushed_branches:
-        print(f"  {GREEN}• Updated & pushed: {', '.join(successfully_pushed_branches)}{NC}")
-    if failed_push_branches:
-        print(f"  {RED}• Failed to push: {', '.join(failed_push_branches)}{NC}")
 
-    if not failed_push_branches:
-        print(f"{BLUE}All team members can now pull from their branches.{NC}")
-    else:
+    if actions_taken:
+        print(f"{BLUE}Actions taken:{NC}")
+        for action in actions_taken:
+            print(f"  {GREEN}•{NC} {action}")
+
+    if failed_push_branches:
+        print(f"  {RED}• Failed: {', '.join(failed_push_branches)}{NC}")
         print(f"{YELLOW}Some branches failed to update. You may need to manually resolve.{NC}")
 
     return len(failed_push_branches) == 0
@@ -807,6 +822,10 @@ def deploy_to_deployment():
     Use case: Deploy feature branch to deployment testing branch
     """
     print(f"{YELLOW}Deploying to deployment...{NC}\n")
+
+    # Track if any actual changes were made
+    changes_made = False
+    actions_taken = []
 
     # Check if git repository
     try:
@@ -845,9 +864,13 @@ def deploy_to_deployment():
         print(f"{RED}Error checking git status: {e}{NC}")
         return False
 
-    # Fetch latest changes
-    success = run_flutter_command(["git", "fetch", "origin"], "Fetching latest changes...                          ")
-    if not success:
+    # Fetch latest changes (silent)
+    result = subprocess.run(
+        ["git", "fetch", "origin"],
+        capture_output=True, text=True,
+        encoding='utf-8', errors='replace'
+    )
+    if result.returncode != 0:
         print(f"{RED}Failed to fetch latest changes{NC}")
         return False
 
@@ -861,19 +884,19 @@ def deploy_to_deployment():
         unpushed_commits = result.stdout.strip().split('\n') if result.stdout.strip() else []
 
         if unpushed_commits and unpushed_commits[0]:
+            changes_made = True
             print(f"{YELLOW}Found {len(unpushed_commits)} unpushed commit(s) on {current_branch}{NC}")
             success = run_flutter_command(
                 ["git", "push", "origin", current_branch],
-                f"Auto-pushing {current_branch} to origin...                "
+                f"Pushing {current_branch} to origin...                     "
             )
             if not success:
                 print(f"{RED}Failed to push {current_branch} to origin{NC}")
                 return False
-            print(f"{GREEN}✓ {current_branch} pushed to origin{NC}\n")
-        else:
-            print(f"{GREEN}✓ {current_branch} is up to date with origin{NC}\n")
+            actions_taken.append(f"Pushed {len(unpushed_commits)} commit(s) from {current_branch}")
     except subprocess.CalledProcessError:
         # Remote branch might not exist, try to push anyway
+        changes_made = True
         print(f"{YELLOW}Remote branch not found, pushing {current_branch}...{NC}")
         success = run_flutter_command(
             ["git", "push", "-u", "origin", current_branch],
@@ -882,22 +905,30 @@ def deploy_to_deployment():
         if not success:
             print(f"{RED}Failed to push {current_branch} to origin{NC}")
             return False
+        actions_taken.append(f"Created and pushed {current_branch}")
 
-    # Checkout deployment branch
-    success = run_flutter_command(["git", "checkout", "deployment"], "Switching to deployment...                            ")
-    if not success:
+    # Checkout deployment branch (silent)
+    checkout_result = subprocess.run(
+        ["git", "checkout", "deployment"],
+        capture_output=True, text=True,
+        encoding='utf-8', errors='replace'
+    )
+    if checkout_result.returncode != 0:
         print(f"{RED}Failed to checkout deployment{NC}")
         return False
 
-    # Pull latest deployment
-    success = run_flutter_command(["git", "pull", "origin", "deployment"], "Pulling latest deployment...                          ")
-    if not success:
+    # Pull latest deployment (silent)
+    pull_result = subprocess.run(
+        ["git", "pull", "origin", "deployment"],
+        capture_output=True, text=True,
+        encoding='utf-8', errors='replace'
+    )
+    if pull_result.returncode != 0:
         print(f"{RED}Failed to pull latest deployment{NC}")
         subprocess.run(["git", "checkout", current_branch], capture_output=True)
         return False
 
     # Merge current branch into deployment
-    print(f"{YELLOW}Merging {current_branch} into deployment...{NC}")
     merge_result = subprocess.run(
         ["git", "merge", current_branch],
         capture_output=True,
@@ -905,12 +936,6 @@ def deploy_to_deployment():
         encoding='utf-8',
         errors='replace'
     )
-
-    if merge_result.returncode == 0:
-        if "Already up to date" in merge_result.stdout or "Already up-to-date" in merge_result.stdout:
-            print(f"{BLUE}ℹ deployment already up to date with {current_branch} - no changes to merge{NC}")
-        else:
-            print(f"{GREEN}✓ Successfully merged {current_branch} into deployment{NC}")
 
     if merge_result.returncode != 0:
         print(f"{RED}Merge failed! There may be conflicts to resolve.{NC}")
@@ -924,20 +949,44 @@ def deploy_to_deployment():
         print(f"\n  Or abort: {BLUE}git merge --abort && git checkout {current_branch}{NC}")
         return False
 
-    # Push to remote
-    success = run_flutter_command(["git", "push", "origin", "deployment"], "Pushing to remote...                                ")
-    if not success:
-        print(f"{RED}Failed to push to remote{NC}")
-        print(f"{YELLOW}Merge completed locally but not pushed{NC}")
-        return False
+    merge_had_changes = False
+    if merge_result.returncode == 0:
+        if "Already up to date" in merge_result.stdout or "Already up-to-date" in merge_result.stdout:
+            pass  # Silent when up to date
+        else:
+            merge_had_changes = True
+            changes_made = True
+            print(f"{GREEN}✓ Merged {current_branch} → deployment{NC}")
+            actions_taken.append(f"Merged {current_branch} into deployment")
 
-    # Checkout back to original branch
-    success = run_flutter_command(["git", "checkout", current_branch], f"Switching back to {current_branch}...                  ")
-    if not success:
-        print(f"{RED}Failed to checkout back to {current_branch}{NC}")
-        print(f"{YELLOW}You are still on deployment branch{NC}")
-        return False
+    # Push to remote (only if there were changes)
+    if merge_had_changes:
+        push_result = subprocess.run(
+            ["git", "push", "origin", "deployment"],
+            capture_output=True, text=True,
+            encoding='utf-8', errors='replace'
+        )
+        if push_result.returncode != 0:
+            print(f"{RED}Failed to push to remote{NC}")
+            print(f"{YELLOW}Merge completed locally but not pushed{NC}")
+            return False
+        print(f"{GREEN}✓ Pushed deployment to origin{NC}")
 
-    print(f"\n{GREEN}✓ Successfully deployed {current_branch} to deployment!{NC}")
-    print(f"{BLUE}You are back on {current_branch} branch{NC}")
+    # Checkout back to original branch (silent)
+    subprocess.run(["git", "checkout", current_branch], capture_output=True)
+
+    # Summary - compact if no changes
+    if not changes_made:
+        print(f"\n{GREEN}✓ deployment already up to date with {current_branch} - no changes needed{NC}")
+        return True
+
+    # Detailed summary when changes were made
+    print(f"\n{'='*55}")
+    print(f"{GREEN}✓ Deploy complete!{NC}")
+    print(f"{'='*55}")
+    if actions_taken:
+        print(f"{BLUE}Actions taken:{NC}")
+        for action in actions_taken:
+            print(f"  {GREEN}•{NC} {action}")
+
     return True
