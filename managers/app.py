@@ -23,6 +23,29 @@ def is_flutter_project_root():
     return PATHS['pubspec'].exists()
 
 
+def is_app_installed(package_name):
+    """
+    Check if an app with the given package name is installed on the Android device.
+    Uses 'adb shell pm path' which returns the APK path if installed, empty if not.
+
+    Returns: True if installed, False otherwise
+    """
+    try:
+        result = subprocess.run(
+            build_adb_cmd(["shell", "pm", "path", package_name]),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+        # If app is installed, output will be like: "package:/data/app/..."
+        # If not installed, output will be empty or error
+        return result.returncode == 0 and result.stdout.strip().startswith("package:")
+    except (subprocess.TimeoutExpired, Exception):
+        return False
+
+
 def get_current_foreground_app():
     """
     Get the package name of currently running foreground app
@@ -285,16 +308,51 @@ def _uninstall_from_project_root():
             return False
 
         print(f"{BLUE}Package name: {package_name}{NC}")
-        success = run_flutter_command(
-            build_adb_cmd(["uninstall", package_name]),
-            "Uninstalling from Android...                        "
-        )
 
-        if success:
-            print(f"\n{GREEN}✓ App uninstalled successfully from Android!{NC}")
+        # Check if the app is installed on the device
+        if is_app_installed(package_name):
+            print(f"{GREEN}✓ App is installed on device{NC}\n")
+            success = run_flutter_command(
+                build_adb_cmd(["uninstall", package_name]),
+                "Uninstalling from Android...                        "
+            )
+
+            if success:
+                print(f"\n{GREEN}✓ App uninstalled successfully from Android!{NC}")
+            else:
+                print(f"\n{RED}✗ Failed to uninstall app from Android!{NC}")
+            return success
         else:
-            print(f"\n{RED}✗ Failed to uninstall app from Android!{NC}")
-        return success
+            # App not installed - detect and uninstall foreground app instead
+            print(f"{YELLOW}⚠️  App is NOT installed on device{NC}")
+            print(f"{YELLOW}   Detecting foreground app instead...{NC}\n")
+
+            _, foreground_package = get_current_foreground_app()
+
+            if not foreground_package:
+                print(f"{RED}Error: Could not detect foreground app{NC}")
+                print(f"{YELLOW}Make sure an app is running in the foreground{NC}")
+                return False
+
+            print(f"{BLUE}Foreground App: {foreground_package}{NC}\n")
+
+            # Ask for confirmation before uninstalling foreground app
+            print(f"{RED}⚠️  WARNING: This will UNINSTALL the foreground app!{NC}")
+            user_input = input(f"Uninstall {GREEN}{foreground_package}{NC}? (Y/n): ")
+            if user_input.lower() == 'n':
+                print(f"{YELLOW}Operation cancelled{NC}")
+                return False
+
+            success = run_flutter_command(
+                build_adb_cmd(["uninstall", foreground_package]),
+                "Uninstalling foreground app...                      "
+            )
+
+            if success:
+                print(f"\n{GREEN}✓ Foreground app uninstalled successfully!{NC}")
+            else:
+                print(f"\n{RED}✗ Failed to uninstall foreground app!{NC}")
+            return success
 
     else:
         print(f"{RED}No device/simulator detected!{NC}")
