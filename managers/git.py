@@ -750,3 +750,142 @@ def sync_branches(branch_names):
         print(f"{YELLOW}Some branches failed to update. You may need to manually resolve.{NC}")
 
     return len(failed_push_branches) == 0
+
+
+def deploy_to_deployment():
+    """Merge current branch into 'deployment' branch and push (one-way deploy)
+
+    This function:
+    1. Fetches latest changes from remote
+    2. Auto-pushes current branch if unpushed commits exist
+    3. Switches to 'deployment' branch
+    4. Pulls latest 'deployment' from remote
+    5. Merges current branch INTO 'deployment'
+    6. Pushes 'deployment' to remote
+    7. Switches back to original branch
+
+    Use case: Deploy feature branch to deployment testing branch
+    """
+    print(f"{YELLOW}Deploying to deployment...{NC}\n")
+
+    # Check if git repository
+    try:
+        subprocess.run(["git", "status"], check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        print(f"{RED}Error: Not a git repository or git not available{NC}")
+        return False
+
+    # Get current branch name
+    try:
+        result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                              capture_output=True, text=True, check=True,
+                              encoding='utf-8', errors='replace')
+        current_branch = result.stdout.strip()
+        print(f"{BLUE}Current branch: {current_branch}{NC}")
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error getting current branch: {e}{NC}")
+        return False
+
+    # Check if current branch is deployment
+    if current_branch == "deployment":
+        print(f"{RED}Error: Already on deployment branch{NC}")
+        print(f"{YELLOW}Please switch to a feature branch first{NC}")
+        return False
+
+    # Check for uncommitted changes
+    try:
+        result = subprocess.run(["git", "status", "--porcelain"],
+                              capture_output=True, text=True, check=True,
+                              encoding='utf-8', errors='replace')
+        if result.stdout.strip():
+            print(f"{RED}Error: You have uncommitted changes{NC}")
+            print(f"{YELLOW}Please commit or stash your changes first{NC}")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error checking git status: {e}{NC}")
+        return False
+
+    # Fetch latest changes
+    success = run_flutter_command(["git", "fetch", "origin"], "Fetching latest changes...                          ")
+    if not success:
+        print(f"{RED}Failed to fetch latest changes{NC}")
+        return False
+
+    # Check for unpushed commits and auto-push if needed
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", f"origin/{current_branch}..{current_branch}"],
+            capture_output=True, text=True,
+            encoding='utf-8', errors='replace'
+        )
+        unpushed_commits = result.stdout.strip().split('\n') if result.stdout.strip() else []
+
+        if unpushed_commits and unpushed_commits[0]:
+            print(f"{YELLOW}Found {len(unpushed_commits)} unpushed commit(s) on {current_branch}{NC}")
+            success = run_flutter_command(
+                ["git", "push", "origin", current_branch],
+                f"Auto-pushing {current_branch} to origin...                "
+            )
+            if not success:
+                print(f"{RED}Failed to push {current_branch} to origin{NC}")
+                return False
+            print(f"{GREEN}✓ {current_branch} pushed to origin{NC}\n")
+        else:
+            print(f"{GREEN}✓ {current_branch} is up to date with origin{NC}\n")
+    except subprocess.CalledProcessError:
+        # Remote branch might not exist, try to push anyway
+        print(f"{YELLOW}Remote branch not found, pushing {current_branch}...{NC}")
+        success = run_flutter_command(
+            ["git", "push", "-u", "origin", current_branch],
+            f"Pushing {current_branch} to origin...                        "
+        )
+        if not success:
+            print(f"{RED}Failed to push {current_branch} to origin{NC}")
+            return False
+
+    # Checkout deployment branch
+    success = run_flutter_command(["git", "checkout", "deployment"], "Switching to deployment...                            ")
+    if not success:
+        print(f"{RED}Failed to checkout deployment{NC}")
+        return False
+
+    # Pull latest deployment
+    success = run_flutter_command(["git", "pull", "origin", "deployment"], "Pulling latest deployment...                          ")
+    if not success:
+        print(f"{RED}Failed to pull latest deployment{NC}")
+        subprocess.run(["git", "checkout", current_branch], capture_output=True)
+        return False
+
+    # Merge current branch into deployment
+    print(f"{YELLOW}Merging {current_branch} into deployment...{NC}")
+    success = run_flutter_command(["git", "merge", current_branch], f"Merging {current_branch}...                            ")
+
+    if not success:
+        print(f"{RED}Merge failed! There may be conflicts to resolve.{NC}")
+        print(f"{YELLOW}You are now on deployment branch{NC}")
+        print(f"\n{BLUE}To resolve:{NC}")
+        print(f"  1. Fix conflicts in VSCode")
+        print(f"  2. {BLUE}git add <file>{NC}")
+        print(f"  3. {BLUE}git commit{NC}")
+        print(f"  4. {BLUE}git push origin deployment{NC}")
+        print(f"  5. {BLUE}git checkout {current_branch}{NC}")
+        print(f"\n  Or abort: {BLUE}git merge --abort && git checkout {current_branch}{NC}")
+        return False
+
+    # Push to remote
+    success = run_flutter_command(["git", "push", "origin", "deployment"], "Pushing to remote...                                ")
+    if not success:
+        print(f"{RED}Failed to push to remote{NC}")
+        print(f"{YELLOW}Merge completed locally but not pushed{NC}")
+        return False
+
+    # Checkout back to original branch
+    success = run_flutter_command(["git", "checkout", current_branch], f"Switching back to {current_branch}...                  ")
+    if not success:
+        print(f"{RED}Failed to checkout back to {current_branch}{NC}")
+        print(f"{YELLOW}You are still on deployment branch{NC}")
+        return False
+
+    print(f"\n{GREEN}✓ Successfully deployed {current_branch} to deployment!{NC}")
+    print(f"{BLUE}You are back on {current_branch} branch{NC}")
+    return True

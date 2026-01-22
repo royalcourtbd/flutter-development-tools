@@ -23,6 +23,7 @@ from .git import (
     create_and_push_tag,
     smart_commit,
     sync_branches,
+    deploy_to_deployment,
 )
 
 from .app import (

@@ -22,6 +22,7 @@ from managers.git import (
     smart_commit,
     discard_changes,
     sync_branches,
+    deploy_to_deployment,
 )
 from managers.app import (
     install_apk,
@@ -73,6 +74,7 @@ def show_usage():
     print("  commit       Smart git commit with AI-generated message")
     print("  discard      Discard all uncommitted changes (tracked + untracked)")
     print("  sync         Sync current branch with other branches bidirectionally")
+    print("  deploy       Deploy current branch to 'deployment' branch")
 
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
@@ -80,6 +82,7 @@ def show_usage():
     print(f"  {GREEN}fdev uninstall{NC}                 # Uninstall app (auto-selects device)")
     print(f"  {GREEN}fdev discard{NC}                   # Discard all uncommitted changes")
     print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}  # Sync with multiple branches")
+    print(f"  {GREEN}fdev deploy{NC}                    # Deploy to deployment branch")
 
     print(f"\n{BLUE}Note:{NC}")
     print(f"  {YELLOW}Multiple devices detected?{NC} Tool will prompt you to select one.")
@@ -145,6 +148,8 @@ def main():
             sys.exit(1)
         branch_names = sys.argv[2:]
         sync_branches(branch_names)
+    elif command == "deploy":
+        deploy_to_deployment()
 
     # Mirror command
     elif command == "mirror":
