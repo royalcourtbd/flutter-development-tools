@@ -30,9 +30,19 @@ def get_system_info():
         'python': sys.executable
     }
 
+def get_base_python():
+    """Get the base Python executable (not venv Python)"""
+    # sys.base_executable gives the original Python even when in a venv
+    if hasattr(sys, 'base_executable') and sys.base_executable:
+        return sys.base_executable
+    return sys.executable
+
 def install_dependencies():
-    """Install required Python dependencies"""
+    """Install required Python dependencies to base Python"""
     print(f"{YELLOW}Checking and installing dependencies...{NC}")
+
+    base_python = get_base_python()
+    print(f"{BLUE}Using Python: {base_python}{NC}")
 
     dependencies = ['python-dotenv', 'requests']
 
@@ -43,14 +53,14 @@ def install_dependencies():
         except ImportError:
             print(f"{YELLOW}Installing {package}...{NC}")
 
-            # Try different installation methods
+            # Try different installation methods using base Python
             install_methods = [
                 # Method 1: Standard pip install
-                [sys.executable, '-m', 'pip', 'install', package],
+                [base_python, '-m', 'pip', 'install', package],
                 # Method 2: With --user flag
-                [sys.executable, '-m', 'pip', 'install', '--user', package],
+                [base_python, '-m', 'pip', 'install', '--user', package],
                 # Method 3: With --break-system-packages (for externally managed environments)
-                [sys.executable, '-m', 'pip', 'install', '--break-system-packages', package],
+                [base_python, '-m', 'pip', 'install', '--break-system-packages', package],
             ]
 
             installed = False
@@ -75,18 +85,20 @@ def install_dependencies():
     print()
 
 def create_batch_wrapper(script_path, wrapper_path, script_name):
-    """Create Windows batch wrapper"""
+    """Create Windows batch wrapper with base Python path"""
+    python_path = get_base_python()
     batch_content = f'''@echo off
-"{sys.executable}" "{script_path}" %*
+"{python_path}" "{script_path}" %*
 '''
     with open(wrapper_path, 'w', encoding='utf-8') as f:
         f.write(batch_content)
     print(f"{GREEN}✓ Created Windows batch wrapper: {wrapper_path}{NC}")
 
 def create_shell_wrapper(script_path, wrapper_path, script_name):
-    """Create Unix shell wrapper"""
+    """Create Unix shell wrapper with base Python path"""
+    python_path = get_base_python()
     shell_content = f'''#!/bin/bash
-"{sys.executable}" "{script_path}" "$@"
+"{python_path}" "{script_path}" "$@"
 '''
     with open(wrapper_path, 'w', encoding='utf-8') as f:
         f.write(shell_content)
@@ -285,29 +297,20 @@ def setup_unix(system_info):
             for py_file in module_path.glob('*.py'):
                 os.chmod(py_file, 0o755)
 
-    # Create symlinks (preferred) or shell wrappers
-    try:
-        # Try symlinks first
-        for script_file, command_name in scripts_to_copy:
-            script_path = scripts_dir / script_file
-            command_link = bin_dir / command_name
+    # Create shell wrappers with absolute Python path
+    # This ensures fdev works correctly even when a venv is activated
+    print(f"{BLUE}Creating shell wrappers with Python: {sys.executable}{NC}")
+    for script_file, command_name in scripts_to_copy:
+        script_path = scripts_dir / script_file
+        command_link = bin_dir / command_name
 
-            if script_path.exists():
-                if command_link.exists() or command_link.is_symlink():
-                    command_link.unlink()
-                command_link.symlink_to(script_path)
+        if script_path.exists():
+            # Remove existing symlink or file
+            if command_link.exists() or command_link.is_symlink():
+                command_link.unlink()
+            create_shell_wrapper(script_path, command_link, command_name)
 
-        print(f"{GREEN}✓ Created symlinks{NC}")
-
-    except (OSError, NotImplementedError):
-        # Fallback to shell wrappers
-        print(f"{YELLOW}Symlinks not available, creating shell wrappers...{NC}")
-        for script_file, command_name in scripts_to_copy:
-            script_path = scripts_dir / script_file
-            command_link = bin_dir / command_name
-
-            if script_path.exists():
-                create_shell_wrapper(script_path, command_link, command_name)
+    print(f"{GREEN}✓ Created shell wrappers{NC}")
 
     # Check PATH
     shell_config = None
