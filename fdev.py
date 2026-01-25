@@ -148,7 +148,7 @@ def main():
     elif command == "sync":
         if len(sys.argv) < 3:
             print(f"{RED}Error: At least one branch name is required.{NC}")
-            print(f"Usage: fdev sync <branch1> [branch2] [branch3] ...")
+            print(f"{BLUE}Usage: fdev sync <branch1> [branch2] [branch3] ...{NC}")
             print(f"\n{BLUE}Example:{NC}")
             print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}")
             sys.exit(1)
@@ -170,7 +170,7 @@ def main():
     elif command == "page":
         if len(sys.argv) < 3:
             print(f"{RED}Error: Page name is required.{NC}")
-            print(f"Usage: {sys.argv[0]} page <page_name>")
+            print(f"{BLUE}Usage: {sys.argv[0]} page <page_name>{NC}")
             sys.exit(1)
         create_page(sys.argv[2])
 
@@ -185,7 +185,7 @@ def main():
 if __name__ == "__main__":
     # Handle Ctrl+C gracefully
     def signal_handler(sig, frame):
-        print("\nProcess interrupted. Exiting...")
+        print(f"\n{YELLOW}Process interrupted. Exiting...{NC}")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)

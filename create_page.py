@@ -31,7 +31,7 @@ def get_project_name():
                 exit(1)
     else:
         print(f"{RED}Error: pubspec.yaml not found in the current directory.{NC}")
-        print(f"Please run this command from the root of a Flutter project.")
+        print(f"{YELLOW}Please run this command from the root of a Flutter project.{NC}")
         exit(1)
 
 def update_service_locator(project_name, class_prefix, page_name):
@@ -40,7 +40,7 @@ def update_service_locator(project_name, class_prefix, page_name):
     
     if not os.path.isfile(service_locator_path):
         print(f"{YELLOW}Warning: Could not find service_locator.dart at {service_locator_path}.{NC}")
-        print(f"Feature DI registration in service locator skipped.")
+        print(f"{YELLOW}Feature DI registration in service locator skipped.{NC}")
         return
     
     with open(service_locator_path, 'r') as file:
@@ -87,7 +87,7 @@ def generate_page(page_name):
     """Generate Flutter feature structure and files"""
     if not page_name:
         print(f"{RED}Error: Page name is required.{NC}")
-        print(f"Usage: {sys.argv[0]} page <page_name>")
+        print(f"{BLUE}Usage: {sys.argv[0]} page <page_name>{NC}")
         exit(1)
     
     project_name = get_project_name()
@@ -267,21 +267,21 @@ class {class_prefix}Page extends StatelessWidget {{
 def main():
     if len(sys.argv) < 3:
         print(f"{RED}Error: Insufficient arguments.{NC}")
-        print(f"Usage: {sys.argv[0]} page <page_name>")
+        print(f"{BLUE}Usage: {sys.argv[0]} page <page_name>{NC}")
         exit(1)
-    
+
     command = sys.argv[1].lower()
-    
+
     if command == "page":
         if len(sys.argv) >= 3:
             generate_page(sys.argv[2])
         else:
             print(f"{RED}Error: Page name is required.{NC}")
-            print(f"Usage: {sys.argv[0]} page <page_name>")
+            print(f"{BLUE}Usage: {sys.argv[0]} page <page_name>{NC}")
             exit(1)
     else:
         print(f"{RED}Error: Unknown command '{command}'.{NC}")
-        print(f"Available commands: page")
+        print(f"{BLUE}Available commands: page{NC}")
         exit(1)
 
 if __name__ == "__main__":

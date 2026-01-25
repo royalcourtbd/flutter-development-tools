@@ -123,5 +123,5 @@ def create_page(page_name):
         sys.exit(1)
     except FileNotFoundError:
         print(f"{RED}Error: create_page.py not found.{NC}")
-        print("Make sure create_page.py exists at ~/scripts/flutter-tools/")
+        print(f"{YELLOW}Make sure create_page.py exists at ~/scripts/flutter-tools/{NC}")
         sys.exit(1)

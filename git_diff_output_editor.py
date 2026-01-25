@@ -4,12 +4,12 @@ import subprocess
 import os
 
 # Import common utilities
-from common_utils import open_file_with_default_app
+from common_utils import open_file_with_default_app, BLUE, NC
 
 # Use current working directory instead of hardcoded path
 folder_path = os.getcwd()
 
-print(f"Working in directory: {folder_path}")
+print(f"{BLUE}Working in directory: {folder_path}{NC}")
 
 # Change the working directory to the specified folder (already current directory)
 os.chdir(folder_path)

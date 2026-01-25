@@ -39,7 +39,7 @@ def get_version_from_pubspec():
                 return None
     else:
         print(f"{RED}Error: pubspec.yaml not found in the current directory.{NC}")
-        print(f"Please run this command from the root of a Flutter project.")
+        print(f"{YELLOW}Please run this command from the root of a Flutter project.{NC}")
         return None
 
 

@@ -225,12 +225,12 @@ def open_file_with_default_app(file_path):
         elif is_windows():
             subprocess.run(['notepad', file_path])
         else:
-            print(f"Please manually open: {file_path}")
+            print(f"{YELLOW}Please manually open: {file_path}{NC}")
             return False
         return True
     except Exception as e:
-        print(f"Error opening file: {e}")
-        print(f"Please manually open: {file_path}")
+        print(f"{RED}Error opening file: {e}{NC}")
+        print(f"{YELLOW}Please manually open: {file_path}{NC}")
         return False
 
 def open_directory(directory_path):
@@ -252,10 +252,10 @@ def open_directory(directory_path):
             # Use explorer to open the directory
             subprocess.run(["explorer", abs_path], shell=True)
         else:
-            print(f"Cannot open directory automatically. Please check: {directory_path}")
+            print(f"{YELLOW}Cannot open directory automatically. Please check: {directory_path}{NC}")
             return False
         return True
     except Exception as e:
-        print(f"Error opening directory: {e}")
-        print(f"Please check: {directory_path}")
+        print(f"{RED}Error opening directory: {e}{NC}")
+        print(f"{YELLOW}Please check: {directory_path}{NC}")
         return False

@@ -216,9 +216,9 @@ def clear_app_data():
         # We need to uninstall and reinstall the app
         print(f"{YELLOW}iOS Note: iOS doesn't support clearing app data directly{NC}")
         print(f"{YELLOW}Options:{NC}")
-        print(f"  1. Reset app data from device: Settings → General → iPhone Storage → [App] → Delete App")
-        print(f"  2. Uninstall and reinstall the app using 'fdev uninstall' then 'fdev install'")
-        print(f"  3. On simulator: Device → Erase All Content and Settings")
+        print(f"{BLUE}  1. Reset app data from device: Settings → General → iPhone Storage → [App] → Delete App{NC}")
+        print(f"{BLUE}  2. Uninstall and reinstall the app using 'fdev uninstall' then 'fdev install'{NC}")
+        print(f"{BLUE}  3. On simulator: Device → Erase All Content and Settings{NC}")
 
         # Offer to uninstall
         user_choice = input(f"\nWould you like to uninstall the app instead? (y/N): ")
