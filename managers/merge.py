@@ -146,17 +146,6 @@ def merge_files():
     else:
         print(f"{RED}❌ Paths file merge failed or no files found{NC}")
 
-    # Append ChatGPT command at the end of the file
-    print(f"\n{BLUE}🤖 Adding ChatGPT command to output file...{NC}")
-    chat_gpt_command = " "
-    try:
-        with open(path_output_file, "a", encoding="utf-8") as path_outfile:
-            path_outfile.write(chat_gpt_command)
-        print(f"{GREEN}✅ ChatGPT command added successfully{NC}")
-    except Exception as e:
-        print(f"{RED}❌ Error adding ChatGPT command: {e}{NC}")
-        total_failed += 1
-
     # Final summary
     print("\n" + "="*60)
     print(f"{BLUE}📊 FINAL SUMMARY:{NC}")
