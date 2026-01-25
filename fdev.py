@@ -42,6 +42,9 @@ from managers.mirror import (
     setup_wireless_adb,
     launch_scrcpy,
 )
+from managers.merge import (
+    merge_files,
+)
 
 
 def show_usage():
@@ -75,6 +78,9 @@ def show_usage():
     print("  discard      Discard all uncommitted changes (tracked + untracked)")
     print("  sync         Sync current branch with other branches bidirectionally")
     print("  deploy       Deploy current branch to 'deployment' branch")
+
+    print(f"\n{BLUE}Utility Commands:{NC}")
+    print("  merge        Merge files from paths.txt into single output file")
 
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
@@ -167,6 +173,10 @@ def main():
             print(f"Usage: {sys.argv[0]} page <page_name>")
             sys.exit(1)
         create_page(sys.argv[2])
+
+    # Utility commands
+    elif command == "merge":
+        merge_files()
 
     else:
         show_usage()

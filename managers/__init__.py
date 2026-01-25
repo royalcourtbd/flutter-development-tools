@@ -47,3 +47,7 @@ from .mirror import (
     setup_wireless_adb,
     launch_scrcpy,
 )
+
+from .merge import (
+    merge_files,
+)
