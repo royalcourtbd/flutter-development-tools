@@ -37,6 +37,30 @@ def get_base_python():
         return sys.base_executable
     return sys.executable
 
+def get_dependencies_from_requirements():
+    """Read dependencies from requirements.txt file"""
+    requirements_file = Path(__file__).parent / 'requirements.txt'
+    dependencies = []
+
+    if requirements_file.exists():
+        with open(requirements_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                # Extract package name (remove version specifiers for import check)
+                package_name = line.split('>=')[0].split('==')[0].split('<')[0].strip()
+                if package_name:
+                    dependencies.append(package_name)
+
+    # Fallback to hardcoded list if requirements.txt not found or empty
+    if not dependencies:
+        dependencies = ['python-dotenv', 'requests']
+
+    return dependencies
+
+
 def install_dependencies():
     """Install required Python dependencies to base Python"""
     print(f"{YELLOW}Checking and installing dependencies...{NC}")
@@ -44,7 +68,29 @@ def install_dependencies():
     base_python = get_base_python()
     print(f"{BLUE}Using Python: {base_python}{NC}")
 
-    dependencies = ['python-dotenv', 'requests']
+    # First try to install from requirements.txt directly
+    requirements_file = Path(__file__).parent / 'requirements.txt'
+    if requirements_file.exists():
+        print(f"{BLUE}Installing from requirements.txt...{NC}")
+        install_methods = [
+            [base_python, '-m', 'pip', 'install', '-r', str(requirements_file)],
+            [base_python, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)],
+            [base_python, '-m', 'pip', 'install', '--break-system-packages', '-r', str(requirements_file)],
+        ]
+
+        for method in install_methods:
+            try:
+                subprocess.check_call(method, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print(f"{GREEN}✓ All dependencies installed from requirements.txt{NC}")
+                print()
+                return
+            except subprocess.CalledProcessError:
+                continue
+
+        print(f"{YELLOW}Could not install from requirements.txt, trying individual packages...{NC}")
+
+    # Fallback: Install packages individually
+    dependencies = get_dependencies_from_requirements()
 
     for package in dependencies:
         try:
@@ -147,7 +193,7 @@ def setup_windows(system_info):
     ]
 
     # Define utility files that need to be copied (no command wrappers needed)
-    utility_files = ['common_utils.py', 'switch_ai.py']
+    utility_files = ['common_utils.py', 'switch_ai.py', 'requirements.txt']
 
     # Define module directories to copy
     module_directories = ['core', 'managers']
@@ -236,7 +282,7 @@ def setup_unix(system_info):
     ]
 
     # Define utility files that need to be copied (no command wrappers needed)
-    utility_files = ['common_utils.py', 'switch_ai.py']
+    utility_files = ['common_utils.py', 'switch_ai.py', 'requirements.txt']
 
     # Define module directories to copy
     module_directories = ['core', 'managers']

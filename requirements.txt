@@ -1,0 +1,30 @@
+# Flutter Dev CLI Tool - Python Dependencies
+# ==========================================
+# Install all dependencies: pip install -r requirements.txt
+#
+# This file contains all Python packages required to run the flutter-dev toolkit.
+# Python version: 3.6+
+
+# -----------------------------------------------------------
+# Core Dependencies
+# -----------------------------------------------------------
+
+# Environment variable management - loads .env files for API key configuration
+python-dotenv>=0.19.0
+
+# HTTP client library - used for AI API calls (Groq, Mistral, SambaNova, OpenRouter)
+requests>=2.25.0
+
+# -----------------------------------------------------------
+# External Tools Required (not Python packages)
+# -----------------------------------------------------------
+# The following tools must be installed separately:
+#
+# Required:
+#   - Flutter SDK (https://flutter.dev)
+#   - Git (https://git-scm.com)
+#   - ADB - Android Debug Bridge (comes with Android Studio)
+#
+# Optional:
+#   - scrcpy - for screen mirroring (https://github.com/Genymobile/scrcpy)
+#   - CocoaPods - for iOS development (https://cocoapods.org)
