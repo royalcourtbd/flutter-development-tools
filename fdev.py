@@ -45,6 +45,10 @@ from managers.mirror import (
 from managers.merge import (
     merge_files,
 )
+from managers.ai import (
+    show_ai_status,
+    switch_ai_service,
+)
 
 
 def show_usage():
@@ -81,6 +85,8 @@ def show_usage():
 
     print(f"\n{BLUE}Utility Commands:{NC}")
     print("  merge        Merge files from paths.txt into single output file")
+    print("  ai           Show current AI service or switch to another")
+    print("               Usage: fdev ai [groq|mistral|sambanova|openrouter]")
 
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
@@ -89,6 +95,8 @@ def show_usage():
     print(f"  {GREEN}fdev discard{NC}                   # Discard all uncommitted changes")
     print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}  # Sync with multiple branches")
     print(f"  {GREEN}fdev deploy{NC}                    # Deploy to deployment branch")
+    print(f"  {GREEN}fdev ai{NC}                        # Show current AI service")
+    print(f"  {GREEN}fdev ai groq{NC}                   # Switch to Groq AI")
 
     print(f"\n{BLUE}Note:{NC}")
     print(f"  {YELLOW}Multiple devices detected?{NC} Tool will prompt you to select one.")
@@ -177,6 +185,13 @@ def main():
     # Utility commands
     elif command == "merge":
         merge_files()
+
+    # AI command
+    elif command == "ai":
+        if len(sys.argv) < 3:
+            show_ai_status()
+        else:
+            switch_ai_service(sys.argv[2])
 
     else:
         show_usage()
