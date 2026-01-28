@@ -9,6 +9,27 @@ from common_utils import RED, GREEN, YELLOW, BLUE, NC
 from core.state import get_selected_device, set_selected_device
 
 
+def get_device_model(serial):
+    """
+    Get the device model name for a given device serial.
+    Returns: Model name string or empty string if failed
+    """
+    try:
+        result = subprocess.run(
+            ["adb", "-s", serial, "shell", "getprop", "ro.product.model"],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=3
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return ""
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+
+
 def get_all_connected_devices():
     """
     Get all connected Android devices/emulators
@@ -58,11 +79,13 @@ def select_device_if_multiple():
     # Multiple devices found, ask user to select
     print(f"\n{YELLOW}Multiple devices detected:{NC}")
     for i, device in enumerate(devices, 1):
+        model = get_device_model(device)
+        model_str = f" {model}" if model else ""
         # Check if it's a network device
         if ':' in device:
-            print(f"  {i}. {device} {BLUE}(wireless){NC}")
+            print(f"  {i}.{model_str} {device} {BLUE}(wireless){NC}")
         else:
-            print(f"  {i}. {device} {GREEN}(USB){NC}")
+            print(f"  {i}.{model_str} {device} {GREEN}(USB){NC}")
 
     print()
     while True:
@@ -162,7 +185,9 @@ def select_usb_device():
     # Multiple USB devices found, ask user to select
     print(f"\n{YELLOW}Multiple USB devices detected:{NC}")
     for i, device in enumerate(devices, 1):
-        print(f"  {i}. {device}")
+        model = get_device_model(device)
+        model_str = f" {model}" if model else ""
+        print(f"  {i}.{model_str} {device} {GREEN}(USB){NC}")
 
     print()
     while True:
