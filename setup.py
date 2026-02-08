@@ -236,20 +236,6 @@ def setup_windows(system_info):
         if script_path.exists():
             create_batch_wrapper(script_path, bin_dir / f'{command_name}.bat', command_name)
 
-    # Check PATH
-    path_env = os.environ.get('PATH', '')
-    bin_path_str = str(bin_dir)
-
-    if bin_path_str not in path_env:
-        print(f"\n{YELLOW}⚠️  Add {bin_dir} to your PATH{NC}")
-        print(f"1. Press Win + R, type 'sysdm.cpl', press Enter")
-        print(f"2. Click 'Environment Variables'")
-        print(f"3. Under 'User variables', find 'Path' and click 'Edit'")
-        print(f"4. Click 'New' and add: {BLUE}{bin_dir}{NC}")
-        print(f"5. Click 'OK' to save")
-        print(f"\n{BLUE}Or run in PowerShell as Administrator:{NC}")
-        print(f'[Environment]::SetEnvironmentVariable("Path", $env:Path + ";{bin_dir}", "User")')
-
 def setup_unix(system_info):
     """Setup for macOS/Linux"""
     print(f"\n{YELLOW}Setting up for {system_info['platform']}...{NC}")
@@ -341,6 +327,92 @@ def setup_unix(system_info):
                 command_link.unlink()
             create_shell_wrapper(script_path, command_link, command_name)
 
+def auto_configure_path(bin_dir, system_platform, home):
+    """Automatically configure PATH variable based on platform"""
+    path_env = os.environ.get('PATH', '')
+    bin_path_str = str(bin_dir)
+
+    # PATH already configured
+    if bin_path_str in path_env:
+        print(f"\n{GREEN}✓ PATH already configured{NC}")
+        return True
+
+    export_line = f'export PATH="$HOME/bin:$PATH"'
+
+    if system_platform == 'Windows':
+        # Windows: use PowerShell to set PATH permanently
+        print(f"\n{YELLOW}Configuring PATH for Windows...{NC}")
+        try:
+            # Use setx to permanently add to user PATH
+            current_path = subprocess.check_output(
+                ['powershell', '-Command',
+                 '[Environment]::GetEnvironmentVariable("Path", "User")'],
+                text=True, stderr=subprocess.DEVNULL
+            ).strip()
+
+            if bin_path_str in current_path:
+                print(f"{GREEN}✓ PATH already contains {bin_dir}{NC}")
+                return True
+
+            new_path = f"{current_path};{bin_path_str}" if current_path else bin_path_str
+            subprocess.check_call(
+                ['powershell', '-Command',
+                 f'[Environment]::SetEnvironmentVariable("Path", "{new_path}", "User")'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            print(f"{GREEN}✓ PATH configured automatically{NC}")
+            print(f"{GREEN}  Added: {bin_dir}{NC}")
+            print(f"\n{YELLOW}⚠️  Restart your terminal to use the commands{NC}")
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # PowerShell failed, show manual instructions
+            print(f"{YELLOW}Could not auto-configure PATH. Please add manually:{NC}")
+            print(f"\n{BLUE}Path to add: {GREEN}{bin_dir}{NC}")
+            print(f"\n{YELLOW}Option 1 - GUI:{NC}")
+            print(f"  1. Press {BLUE}Win + R{NC} → type {BLUE}sysdm.cpl{NC} → Enter")
+            print(f"  2. {BLUE}Environment Variables{NC} → User variables → {BLUE}Path{NC} → Edit")
+            print(f"  3. New → add: {GREEN}{bin_dir}{NC}")
+            print(f"\n{YELLOW}Option 2 - PowerShell (Admin):{NC}")
+            print(f'{BLUE}[Environment]::SetEnvironmentVariable("Path", $env:Path + ";{bin_dir}", "User"){NC}')
+            return False
+    else:
+        # macOS/Linux: detect shell config and auto-append
+        shell = os.environ.get('SHELL', '')
+        if 'zsh' in shell:
+            shell_config = home / '.zshrc'
+        elif 'bash' in shell:
+            shell_config = home / '.bashrc'
+        else:
+            shell_config = home / '.profile'
+
+        print(f"\n{YELLOW}Configuring PATH for {system_platform}...{NC}")
+
+        # Check if export line already exists in config file
+        if shell_config.exists():
+            config_content = shell_config.read_text(encoding='utf-8')
+            if '$HOME/bin' in config_content or str(bin_dir) in config_content:
+                print(f"{GREEN}✓ PATH entry already exists in {shell_config.name}{NC}")
+                print(f"{YELLOW}⚠️  Restart your terminal or run: {BLUE}source {shell_config}{NC}")
+                return True
+
+        # Append export line to shell config
+        try:
+            with open(shell_config, 'a', encoding='utf-8') as f:
+                f.write(f'\n# Flutter Development Tools - added by setup.py\n')
+                f.write(f'{export_line}\n')
+
+            print(f"{GREEN}✓ PATH configured automatically{NC}")
+            print(f"{GREEN}  Added to: {shell_config}{NC}")
+            print(f"{GREEN}  Entry: {export_line}{NC}")
+            print(f"\n{YELLOW}⚠️  Restart your terminal or run:{NC}")
+            print(f"  {BLUE}source {shell_config}{NC}")
+            return True
+        except OSError as e:
+            print(f"{RED}Could not write to {shell_config}: {e}{NC}")
+            print(f"{YELLOW}Please add this line manually to {BLUE}{shell_config}{NC}:{NC}")
+            print(f"  {GREEN}{export_line}{NC}")
+            return False
+
 def main():
     print(f"{BLUE}Flutter Development Tools - Setup{NC}")
     print(f"{BLUE}================================={NC}")
@@ -365,43 +437,8 @@ def main():
     print(f"{GREEN}✓ Setup completed successfully!{NC}")
     print(f"{GREEN}{'='*50}{NC}")
 
-    # Check if PATH needs to be configured
-    path_env = os.environ.get('PATH', '')
-    bin_path_str = str(bin_dir)
-
-    if bin_path_str not in path_env:
-        print(f"\n{YELLOW}{'='*50}{NC}")
-        print(f"{YELLOW}⚠️  IMPORTANT: Add this to your PATH{NC}")
-        print(f"{YELLOW}{'='*50}{NC}")
-
-        if system_info['platform'] == 'Windows':
-            print(f"\n{BLUE}Path to add: {GREEN}{bin_dir}{NC}")
-            print(f"\n{YELLOW}Method 1 - GUI:{NC}")
-            print(f"  1. Press {BLUE}Win + R{NC}, type {BLUE}'sysdm.cpl'{NC}, press Enter")
-            print(f"  2. Click {BLUE}'Environment Variables'{NC}")
-            print(f"  3. Under {BLUE}'User variables'{NC}, find {BLUE}'Path'{NC} and click {BLUE}'Edit'{NC}")
-            print(f"  4. Click {BLUE}'New'{NC} and add: {GREEN}{bin_dir}{NC}")
-            print(f"  5. Click {BLUE}'OK'{NC} to save")
-            print(f"\n{YELLOW}Method 2 - PowerShell (as Administrator):{NC}")
-            print(f'{BLUE}[Environment]::SetEnvironmentVariable("Path", $env:Path + ";{bin_dir}", "User"){NC}')
-            print(f"\n{RED}⚠️  Restart your terminal after adding to PATH{NC}")
-        else:
-            shell_config = None
-            if 'zsh' in os.environ.get('SHELL', ''):
-                shell_config = system_info['home'] / '.zshrc'
-            elif 'bash' in os.environ.get('SHELL', ''):
-                shell_config = system_info['home'] / '.bashrc'
-
-            print(f"\n{BLUE}Path to add: {GREEN}{bin_dir}{NC}")
-            if shell_config:
-                print(f"\n{YELLOW}Add this line to {BLUE}{shell_config}{NC}:{NC}")
-                print(f'{GREEN}export PATH="$HOME/bin:$PATH"{NC}')
-                print(f"\n{YELLOW}Then run:{NC}")
-                print(f'{BLUE}source {shell_config}{NC}')
-            else:
-                print(f"\n{YELLOW}Add {GREEN}{bin_dir}{NC} to your PATH environment variable")
-    else:
-        print(f"\n{GREEN}✓ PATH is already configured{NC}")
+    # Auto-configure PATH
+    auto_configure_path(bin_dir, system_info['platform'], system_info['home'])
 
     # Show available commands
     print(f"\n{BLUE}{'='*50}{NC}")
