@@ -26,11 +26,14 @@ def is_flutter_project_root():
 def is_app_installed(package_name):
     """
     Check if an app with the given package name is installed on the Android device.
-    Uses 'adb shell pm path' which returns the APK path if installed, empty if not.
+    Uses 'adb shell pm path' first, then falls back to 'pm list packages' to detect
+    ghost packages (e.g. packages with missing APK but existing database entry that
+    cause INSTALL_FAILED_UPDATE_INCOMPATIBLE errors).
 
     Returns: True if installed, False otherwise
     """
     try:
+        # Primary check: adb shell pm path (detects packages with APK on disk)
         result = subprocess.run(
             build_adb_cmd(["shell", "pm", "path", package_name]),
             capture_output=True,
@@ -41,7 +44,23 @@ def is_app_installed(package_name):
         )
         # If app is installed, output will be like: "package:/data/app/..."
         # If not installed, output will be empty or error
-        return result.returncode == 0 and result.stdout.strip().startswith("package:")
+        if result.returncode == 0 and result.stdout.strip().startswith("package:"):
+            return True
+
+        # Fallback: pm list packages (detects ghost packages where APK is missing
+        # but package entry still exists in the system database)
+        result = subprocess.run(
+            build_adb_cmd(["shell", "pm", "list", "packages", package_name]),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=5
+        )
+        if result.returncode == 0 and f"package:{package_name}" in result.stdout:
+            return True
+
+        return False
     except (subprocess.TimeoutExpired, Exception):
         return False
 
@@ -323,8 +342,23 @@ def _uninstall_from_project_root():
                 print(f"\n{RED}✗ Failed to uninstall app from Android!{NC}")
             return success
         else:
-            # App not installed - detect and uninstall foreground app instead
-            print(f"{YELLOW}⚠️  App is NOT installed on device{NC}")
+            # App not detected by pm - but may still exist as a ghost package
+            # (e.g. missing APK but database entry remains, causing
+            # INSTALL_FAILED_UPDATE_INCOMPATIBLE). Try adb uninstall first
+            # since it can remove ghost entries that pm path/list can't see.
+            print(f"{YELLOW}⚠️  App not detected on device, attempting uninstall anyway...{NC}\n")
+
+            success = run_flutter_command(
+                build_adb_cmd(["uninstall", package_name]),
+                "Uninstalling from Android...                        "
+            )
+
+            if success:
+                print(f"\n{GREEN}✓ App uninstalled successfully from Android!{NC}")
+                return True
+
+            # adb uninstall also failed - fall back to foreground app detection
+            print(f"\n{YELLOW}⚠️  Could not uninstall {package_name}{NC}")
             print(f"{YELLOW}   Detecting foreground app instead...{NC}\n")
 
             _, foreground_package = get_current_foreground_app()
