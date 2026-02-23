@@ -8,6 +8,7 @@ Supports: Groq, Mistral, SambaNova, OpenRouter
 import requests
 import json
 import os
+import re
 import time
 from pathlib import Path
 from dotenv import load_dotenv
@@ -66,6 +67,34 @@ if not current_config["api_key"]:
     print(f"{RED}✗ Error: API key not found for {DEFAULT_AI_SERVICE.upper()}{NC}")
     print(f"{YELLOW}→ Please set {DEFAULT_AI_SERVICE.upper()}_API_KEY in .env file{NC}")
     exit(1)
+
+
+def strip_markdown_code_blocks(text):
+    """
+    Remove markdown code blocks from AI response.
+    Handles: ```text, ```markdown, ``` etc.
+    """
+    text = text.strip()
+
+    # Pattern to match code blocks with optional language identifier
+    # Matches: ```text\n...\n```, ```markdown\n...\n```, ```\n...\n```
+    pattern = r'^```(?:text|markdown|commit)?\s*\n?(.*?)\n?```$'
+    match = re.match(pattern, text, re.DOTALL | re.IGNORECASE)
+
+    if match:
+        return match.group(1).strip()
+
+    # Also handle case where code block markers are on separate lines
+    lines = text.split('\n')
+    if lines and lines[0].strip().startswith('```'):
+        # Remove first line if it's a code block start
+        lines = lines[1:]
+    if lines and lines[-1].strip() == '```':
+        # Remove last line if it's a code block end
+        lines = lines[:-1]
+
+    return '\n'.join(lines).strip()
+
 
 def generate_commit_message(git_diff_content):
     """
@@ -136,7 +165,9 @@ Return only the commit message without any additional text or explanations."""
                 result = response.json()
 
                 if 'choices' in result and len(result['choices']) > 0:
-                    commit_message = result['choices'][0]['message']['content'].strip()
+                    raw_message = result['choices'][0]['message']['content'].strip()
+                    # Remove markdown code blocks if AI wrapped the response
+                    commit_message = strip_markdown_code_blocks(raw_message)
                     print(f"{GREEN}✓ Commit message generated successfully using {DEFAULT_AI_SERVICE.upper()}{NC}")
                     return commit_message
                 else:
