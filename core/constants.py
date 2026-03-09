@@ -32,6 +32,7 @@ PATHS = {
     'info_plist': Path("ios/Runner/Info.plist"),
     'apk_output': Path("build/app/outputs/flutter-apk"),
     'aab_output': Path("build/app/outputs/bundle/release"),
+    'ipa_output': Path("build/ios/ipa"),
 }
 
 # Build commands
@@ -47,5 +48,10 @@ BUILD_COMMANDS = {
     'aab': [
         "flutter", "build", "appbundle", "--release",
         "--obfuscate", "--split-debug-info=./"
+    ],
+    'ipa': [
+        "flutter", "build", "ipa", "--release",
+        "--obfuscate", "--split-debug-info=./",
+        "--export-method", "app-store"
     ],
 }

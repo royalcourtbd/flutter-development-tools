@@ -15,6 +15,7 @@ from managers.build import (
     build_apk,
     build_apk_split_per_abi,
     build_aab,
+    build_ipa,
     release_run,
 )
 from managers.git import (
@@ -58,6 +59,7 @@ def show_usage():
     print("  apk          Build release APK (Full Process)")
     print("  apk-split    Build APK with --split-per-abi")
     print("  aab          Build release AAB")
+    print("  ipa          Build IPA for App Store (macOS only)")
     print("  release-run  Build & install release APK on connected device")
 
     print(f"\n{BLUE}Development Commands:{NC}")
@@ -108,6 +110,7 @@ def main():
     # Create required directories if they don't exist
     os.makedirs("build/app/outputs/flutter-apk", exist_ok=True)
     os.makedirs("build/app/outputs/bundle/release", exist_ok=True)
+    os.makedirs("build/ios/ipa", exist_ok=True)
 
     if len(sys.argv) < 2:
         show_usage()
@@ -121,6 +124,8 @@ def main():
         build_apk_split_per_abi()
     elif command == "aab":
         build_aab()
+    elif command == "ipa":
+        build_ipa()
     elif command == "release-run":
         release_run()
 

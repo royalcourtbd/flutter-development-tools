@@ -357,6 +357,64 @@ def build_aab():
 
 
 @timer_decorator
+def build_ipa():
+    """Build IPA for iOS App Store"""
+    if is_windows():
+        print(f"{RED}Error: iOS builds are not supported on Windows. macOS required.{NC}")
+        return False
+
+    print(f"{YELLOW}Building IPA (App Store)...{NC}\n")
+
+    # Step 1: Clean the project
+    run_flutter_command(["flutter", "clean"], "Cleaning project...                                   ")
+
+    # Step 2: Get dependencies
+    run_flutter_command(["flutter", "pub", "get"], "Getting dependencies...                              ")
+
+    # Step 3: Generate localizations
+    run_flutter_command(["flutter", "gen-l10n"], "Generating localizations...                          ")
+
+    # Step 4: Generate build files
+    run_flutter_command(["dart", "run", "build_runner", "build", "--delete-conflicting-outputs"], "Generating build files...                            ")
+
+    # Step 5: Update iOS pods
+    import os
+    current_dir = os.getcwd()
+    ios_dir = Path("ios")
+    if ios_dir.exists():
+        os.chdir("ios")
+        run_flutter_command(["pod", "deintegrate"], "Deintegrating pods...                                ")
+        run_flutter_command(["pod", "install"], "Installing pods...                                   ")
+        os.chdir(current_dir)
+
+    # Step 6: Build IPA
+    build_success = run_flutter_command(
+        [
+            "flutter", "build", "ipa", "--release",
+            "--obfuscate", "--split-debug-info=./",
+            "--export-method", "app-store"
+        ],
+        "Building IPA...                                      "
+    )
+
+    if not build_success:
+        print(f"\n{RED}✗ IPA build failed!{NC}")
+        return False
+
+    # Step 7: Display IPA file info
+    ipa_output = PATHS['ipa_output']
+    display_build_size("ipa", ipa_output)
+
+    # Step 8: Success message and open directory
+    print(f"\n{GREEN}✓ IPA built successfully!{NC}")
+    print(f"{BLUE}IPA location: {ipa_output}{NC}")
+    print(f"\n{YELLOW}Next step: Upload to App Store Connect using Transporter or:{NC}")
+    print(f"  {GREEN}xcrun altool --upload-app -f <path-to-ipa> -t ios -u <apple-id> -p <app-specific-password>{NC}")
+    open_directory(str(ipa_output))
+    return True
+
+
+@timer_decorator
 def release_run():
     """Build & Install Release APK"""
     return common_build_process(
