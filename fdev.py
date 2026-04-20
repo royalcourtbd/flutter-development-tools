@@ -50,6 +50,9 @@ from managers.ai import (
     show_ai_status,
     switch_ai_service,
 )
+from managers.datetime import (
+    open_datetime_settings,
+)
 
 
 def show_usage():
@@ -77,6 +80,7 @@ def show_usage():
     print("  mirror       Launch scrcpy screen mirror (auto-detect device)")
     print("    --wireless Setup wireless ADB connection")
     print("    --no-top   Launch mirror without 'always on top' window")
+    print("  datetime     Open device Date & Time settings (auto-time disabled)")
 
     print(f"\n{BLUE}Git & iOS Commands:{NC}")
     print("  pod          Update iOS pods (macOS/Linux only)")
@@ -95,6 +99,7 @@ def show_usage():
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
     print(f"  {GREEN}fdev mirror --wireless{NC}         # Setup wireless ADB first")
     print(f"  {GREEN}fdev mirror --no-top{NC}           # Launch mirror without always-on-top")
+    print(f"  {GREEN}fdev datetime{NC}                  # Open device Date & Time settings")
     print(f"  {GREEN}fdev uninstall{NC}                 # Uninstall app (auto-selects device)")
     print(f"  {GREEN}fdev discard{NC}                   # Discard all uncommitted changes")
     print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}  # Sync with multiple branches")
@@ -181,6 +186,10 @@ def main():
             setup_wireless_adb()
         else:
             launch_scrcpy(always_on_top=not no_top)
+
+    # DateTime command
+    elif command == "datetime":
+        open_datetime_settings()
 
     # Page generation
     elif command == "page":
