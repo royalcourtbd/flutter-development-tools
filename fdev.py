@@ -76,6 +76,7 @@ def show_usage():
     print("  clear-data   Clear data of currently running foreground app")
     print("  mirror       Launch scrcpy screen mirror (auto-detect device)")
     print("    --wireless Setup wireless ADB connection")
+    print("    --no-top   Launch mirror without 'always on top' window")
 
     print(f"\n{BLUE}Git & iOS Commands:{NC}")
     print("  pod          Update iOS pods (macOS/Linux only)")
@@ -93,6 +94,7 @@ def show_usage():
     print(f"\n{BLUE}Examples:{NC}")
     print(f"  {GREEN}fdev mirror{NC}                    # Launch screen mirror")
     print(f"  {GREEN}fdev mirror --wireless{NC}         # Setup wireless ADB first")
+    print(f"  {GREEN}fdev mirror --no-top{NC}           # Launch mirror without always-on-top")
     print(f"  {GREEN}fdev uninstall{NC}                 # Uninstall app (auto-selects device)")
     print(f"  {GREEN}fdev discard{NC}                   # Discard all uncommitted changes")
     print(f"  {GREEN}fdev sync dev-farhan dev-sufi{NC}  # Sync with multiple branches")
@@ -174,10 +176,11 @@ def main():
     elif command == "mirror":
         # Check for wireless option
         wireless = "--wireless" in sys.argv
+        no_top = "--no-top" in sys.argv
         if wireless:
             setup_wireless_adb()
         else:
-            launch_scrcpy()
+            launch_scrcpy(always_on_top=not no_top)
 
     # Page generation
     elif command == "page":

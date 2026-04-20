@@ -148,9 +148,12 @@ def setup_wireless_adb():
         return False
 
 
-def launch_scrcpy():
+def launch_scrcpy(always_on_top=True):
     """
     Launch scrcpy with optimized settings
+
+    Args:
+        always_on_top: If True, keep the scrcpy window always on top
     """
     print(f"{YELLOW}Launching scrcpy...{NC}\n")
 
@@ -177,7 +180,9 @@ def launch_scrcpy():
     print(f"{GREEN}✓ Device found: {selected_device}{NC}")
 
     # Build scrcpy command with optimized settings
-    cmd = ["scrcpy", "-s", selected_device, "--no-mouse-hover", "--always-on-top", "-m", "1080", "-b", "5M"]
+    cmd = ["scrcpy", "-s", selected_device, "--no-mouse-hover", "-m", "1080", "-b", "5M"]
+    if always_on_top:
+        cmd.insert(4, "--always-on-top")
 
     print(f"\n{BLUE}Launching scrcpy...{NC}")
     print(f"{YELLOW}Command: {' '.join(cmd)}{NC}\n")

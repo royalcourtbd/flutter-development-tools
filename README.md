@@ -103,6 +103,7 @@ fdev uninstall               # Uninstall app from connected device
 fdev clear-data              # Clear data of currently running foreground app (Android/iOS)
 fdev mirror                  # Launch scrcpy screen mirror
 fdev mirror --wireless       # Setup wireless ADB connection first
+fdev mirror --no-top         # Launch mirror without always-on-top window
 ```
 
 #### 🆕 Clear App Data Feature
@@ -171,6 +172,9 @@ fdev mirror
 
 # Wireless ADB setup করে তারপর mirror করুন
 fdev mirror --wireless
+
+# Always-on-top ছাড়া mirror করুন (normal window)
+fdev mirror --no-top
 ```
 
 **Features:**
