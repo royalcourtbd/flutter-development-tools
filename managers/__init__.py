@@ -55,3 +55,7 @@ from .merge import (
 from .datetime import (
     open_datetime_settings,
 )
+
+from .web_deploy import (
+    web_deploy,
+)

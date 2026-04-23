@@ -53,6 +53,9 @@ from managers.ai import (
 from managers.datetime import (
     open_datetime_settings,
 )
+from managers.web_deploy import (
+    web_deploy,
+)
 
 
 def show_usage():
@@ -64,6 +67,7 @@ def show_usage():
     print("  aab          Build release AAB")
     print("  ipa          Build IPA for App Store (macOS only)")
     print("  release-run  Build & install release APK on connected device")
+    print("  web-deploy   Build Flutter web (release) + Firebase deploy (functions & hosting)")
 
     print(f"\n{BLUE}Development Commands:{NC}")
     print("  lang         Generate localization files")
@@ -135,6 +139,8 @@ def main():
         build_ipa()
     elif command == "release-run":
         release_run()
+    elif command == "web-deploy":
+        web_deploy()
 
     # Development commands
     elif command == "lang":
