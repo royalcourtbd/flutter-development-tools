@@ -63,3 +63,7 @@ from .web_deploy import (
 from .doctor import (
     run_doctor,
 )
+
+from .brew import (
+    brew_manager,
+)

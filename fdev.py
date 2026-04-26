@@ -59,6 +59,9 @@ from managers.web_deploy import (
 from managers.doctor import (
     run_doctor,
 )
+from managers.brew import (
+    brew_manager,
+)
 
 
 def show_usage():
@@ -99,6 +102,7 @@ def show_usage():
 
     print(f"\n{BLUE}Utility Commands:{NC}")
     print("  doctor       Check environment health (tools, deps, config)")
+    print("  brew         Interactive Homebrew package manager")
     print("  merge        Merge files from paths.txt into single output file")
     print("  ai           Show current AI service or switch to another")
     print("               Usage: fdev ai [groq|mistral|sambanova|openrouter]")
@@ -216,6 +220,10 @@ def main():
     # Doctor command
     elif command == "doctor":
         run_doctor()
+
+    # Brew command
+    elif command == "brew":
+        brew_manager()
 
     # AI command
     elif command == "ai":
