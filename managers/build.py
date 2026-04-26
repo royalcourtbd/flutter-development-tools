@@ -47,12 +47,13 @@ def show_loading(description, process):
         return False
 
 
-def run_flutter_command(cmd_list, description):
+def run_flutter_command(cmd_list, description, env=None):
     """
     Runs a flutter/dart command with a loading spinner.
     Parameters:
         cmd_list: List of command arguments
         description: Description to show with spinner
+        env: Optional environment variables dict (default: inherits current env)
     """
     # Windows compatibility for shell commands
     shell_needed = (is_windows() and cmd_list[0] in ['timeout', 'start', 'flutter', 'dart']) or cmd_list[0] == 'pod'
@@ -63,7 +64,8 @@ def run_flutter_command(cmd_list, description):
         stderr=subprocess.PIPE,
         shell=shell_needed,
         encoding='utf-8',
-        errors='replace'
+        errors='replace',
+        env=env,
     )
     return show_loading(description, process)
 
@@ -382,9 +384,13 @@ def build_ipa():
     current_dir = os.getcwd()
     ios_dir = Path("ios")
     if ios_dir.exists():
+        # Set UTF-8 encoding to prevent CocoaPods locale issues
+        pod_env = os.environ.copy()
+        pod_env['LANG'] = 'en_US.UTF-8'
+        pod_env['LC_ALL'] = 'en_US.UTF-8'
         os.chdir("ios")
-        run_flutter_command(["pod", "deintegrate"], "Deintegrating pods...                                ")
-        run_flutter_command(["pod", "install"], "Installing pods...                                   ")
+        run_flutter_command(["pod", "deintegrate"], "Deintegrating pods...                                ", env=pod_env)
+        run_flutter_command(["pod", "install"], "Installing pods...                                   ", env=pod_env)
         os.chdir(current_dir)
 
     # Step 6: Build IPA

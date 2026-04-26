@@ -53,9 +53,16 @@ def _get_casks():
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
+def _is_cask(package):
+    """Check if a package is a cask (GUI app) or formula."""
+    result = _run_brew(["info", "--cask", package])
+    return bool(result and "Not installed" not in result)
+
+
 def _get_package_info(package):
     """Get detailed info about a package."""
     info = {}
+    info['is_cask'] = _is_cask(package)
 
     # Basic info
     raw = _run_brew(["info", package])
@@ -95,8 +102,9 @@ def _get_package_info(package):
 
 def _display_package_details(package, info):
     """Display detailed package information."""
+    pkg_type = f"{YELLOW}(cask){NC}" if info.get('is_cask') else f"{BLUE}(formula){NC}"
     print(f"\n{BLUE}{'═' * 54}{NC}")
-    print(f"{BLUE}  Package: {GREEN}{package}{NC}")
+    print(f"{BLUE}  Package: {GREEN}{package}{NC} {pkg_type}")
     print(f"{BLUE}{'═' * 54}{NC}")
 
     # Versions
@@ -177,27 +185,36 @@ def _uninstall_package(package, info):
 
     print()
     success = True
+    is_cask = info.get('is_cask', False)
 
     # Step 1: Uninstall the package
-    print(f"  Uninstalling {package}...", end=' ', flush=True)
-    result = subprocess.run(
-        ["brew", "uninstall", "--zap", package],
-        capture_output=True, text=True
-    )
-    if result.returncode == 0:
-        print(f"{CHECKMARK}")
+    pkg_type = "cask" if is_cask else "formula"
+    print(f"  Uninstalling {package} ({pkg_type})...", end=' ', flush=True)
+
+    # Build uninstall commands in order of preference
+    if is_cask:
+        attempts = [
+            ["brew", "uninstall", "--cask", "--zap", "--force", package],
+            ["brew", "uninstall", "--cask", "--force", package],
+            ["brew", "uninstall", "--cask", package],
+        ]
     else:
-        # Try without --zap (some packages don't support it)
-        result = subprocess.run(
+        attempts = [
+            ["brew", "uninstall", "--zap", package],
+            ["brew", "uninstall", "--force", package],
             ["brew", "uninstall", package],
-            capture_output=True, text=True
-        )
+        ]
+
+    for cmd in attempts:
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             print(f"{CHECKMARK}")
-        else:
-            print(f"{CROSS}")
-            print(f"  {RED}{result.stderr.strip()}{NC}")
-            success = False
+            break
+    else:
+        print(f"{CROSS}")
+        err = result.stderr.strip() or result.stdout.strip()
+        print(f"  {RED}{err}{NC}")
+        success = False
 
     if not success:
         return False

@@ -84,7 +84,18 @@ def update_pods():
         print(f"{BLUE}This command is only available on macOS and Linux{NC}")
         return
 
+    # Check if ios directory exists
+    if not os.path.isdir("ios"):
+        print(f"{RED}Error: 'ios' directory not found. Are you in a Flutter project root?{NC}")
+        return
+
     print(f"{YELLOW}Updating iOS pods...{NC}\n")
+
+    # Set UTF-8 encoding to prevent CocoaPods locale issues
+    env = os.environ.copy()
+    env['LANG'] = 'en_US.UTF-8'
+    env['LC_ALL'] = 'en_US.UTF-8'
+
     # Navigate to iOS directory
     current_dir = os.getcwd()
     os.chdir("ios")
@@ -98,10 +109,10 @@ def update_pods():
             run_flutter_command(["sleep", "0.1"], "Removing Podfile.lock                                 ")
     except FileNotFoundError:
         pass
-    # Update pod repo
-    run_flutter_command(["pod", "repo", "update"], "Updating pod repository                               ")
-    # Install pods
-    run_flutter_command(["pod", "install"], "Installing pods                                       ")
+    # Update pod repo (with UTF-8 env)
+    run_flutter_command(["pod", "repo", "update"], "Updating pod repository                               ", env=env)
+    # Install pods (with UTF-8 env)
+    run_flutter_command(["pod", "install"], "Installing pods                                       ", env=env)
     # Return to root directory
     os.chdir(current_dir)
     print(f"\n{GREEN}✓ iOS pods updated successfully!{NC}")
