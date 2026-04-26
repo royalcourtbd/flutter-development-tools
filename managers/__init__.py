@@ -59,3 +59,7 @@ from .datetime import (
 from .web_deploy import (
     web_deploy,
 )
+
+from .doctor import (
+    run_doctor,
+)

@@ -56,6 +56,9 @@ from managers.datetime import (
 from managers.web_deploy import (
     web_deploy,
 )
+from managers.doctor import (
+    run_doctor,
+)
 
 
 def show_usage():
@@ -95,6 +98,7 @@ def show_usage():
     print("  deploy       Deploy current branch to 'deployment' branch")
 
     print(f"\n{BLUE}Utility Commands:{NC}")
+    print("  doctor       Check environment health (tools, deps, config)")
     print("  merge        Merge files from paths.txt into single output file")
     print("  ai           Show current AI service or switch to another")
     print("               Usage: fdev ai [groq|mistral|sambanova|openrouter]")
@@ -208,6 +212,10 @@ def main():
     # Utility commands
     elif command == "merge":
         merge_files()
+
+    # Doctor command
+    elif command == "doctor":
+        run_doctor()
 
     # AI command
     elif command == "ai":
